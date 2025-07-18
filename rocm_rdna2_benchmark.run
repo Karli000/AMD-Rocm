@@ -1,0 +1,86 @@
+#!/bin/bash
+LOG="rocm_setup.log"
+echo "🚀 ROCm Benchmarks gestartet: $(date)" > "$LOG"
+
+# 🔬 Jupyter Benchmark
+pip install --upgrade pip notebook tensorflow
+echo -e "\n🔬 Jupyter Test..." | tee -a "$LOG"
+START_JUP=$(date +%s)
+python3 -c "from notebook import notebookapp; print('✅ Jupyter OK')"
+END_JUP=$(date +%s)
+JUP_TIME=$((END_JUP - START_JUP))
+echo "⏱️ Jupyter Startzeit: ${JUP_TIME} Sek." | tee -a "$LOG"
+
+# 🎨 Blender Rendering
+sudo apt install blender -y
+echo -e "\n🎨 Blender Test..." | tee -a "$LOG"
+BLENDER_OK=$(blender -b --factory-startup -P - <<EOF
+import bpy
+bpy.ops.mesh.primitive_cube_add(location=(0,0,0))
+bpy.context.scene.render.filepath = "/tmp/test_render.png"
+bpy.ops.render.render(write_still=True)
+print("✅ Blender abgeschlossen")
+EOF
+)
+echo "$BLENDER_OK" | tee -a "$LOG"
+[[ "$BLENDER_OK" == *"✅ Blender abgeschlossen"* ]] && BLENDER_RESULT="✅ Erfolgreich" || BLENDER_RESULT="❌ Fehler"
+
+# 🧠 TensorFlow GPU-Test
+echo -e "\n🧠 TensorFlow Test..." | tee -a "$LOG"
+TF_STATUS=$(python3 - <<EOF
+import tensorflow as tf
+gpu = tf.config.list_physical_devices('GPU')
+if gpu: print("✅ GPU erkannt")
+else: print("❌ Keine GPU gefunden")
+EOF
+)
+echo "$TF_STATUS" | tee -a "$LOG"
+TF_RESULT=$(echo "$TF_STATUS" | tail -n 1)
+
+# 🚀 HIP Benchmark
+mkdir -p ~/rocm_benchmarks && cd ~/rocm_benchmarks
+cat <<EOF > hip_mm.cpp
+#include <hip/hip_runtime.h>
+#include <iostream>
+#define N 1024
+__global__ void matmul(const float* A, const float* B, float* C) {
+    int row = hipBlockIdx_y * hipBlockDim_y + hipThreadIdx_y;
+    int col = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+    if (row < N && col < N) {
+        float sum = 0.0f;
+        for (int k = 0; k < N; ++k)
+            sum += A[row * N + k] * B[k * N + col];
+        C[row * N + col] = sum;
+    }
+}
+int main() {
+    size_t size = N*N*sizeof(float);
+    float *A, *B, *C;
+    hipMallocManaged(&A, size); hipMallocManaged(&B, size); hipMallocManaged(&C, size);
+    for (int i = 0; i < N*N; ++i) { A[i]=1.0f; B[i]=2.0f; }
+    dim3 threads(16,16); dim3 blocks(N/threads.x, N/threads.y);
+    hipLaunchKernelGGL(matmul, blocks, threads, 0, 0, A,B,C);
+    hipDeviceSynchronize();
+    std::cout << "✅ HIP Benchmark abgeschlossen!" << std::endl;
+    hipFree(A); hipFree(B); hipFree(C);
+    return 0;
+}
+EOF
+hipcc hip_mm.cpp -o hip_mm
+HIP_RESULT=$(./hip_mm | tee -a "$LOG")
+[[ "$HIP_RESULT" == *"✅ HIP Benchmark"* ]] && HIP_STATUS="✅ Erfolgreich" || HIP_STATUS="❌ Fehler"
+
+# 📊 Ergebnistabelle (Markdown-Ausgabe)
+echo -e "\n📊 Benchmark-Tabelle:" | tee -a "$LOG"
+TABLE=$(cat <<TAB
+| Test              | Beschreibung                         | Ergebnis               |
+|-------------------|--------------------------------------|------------------------|
+| Jupyter Notebook  | Import + Startzeitmessung            | ⏱️ ${JUP_TIME} Sek.     |
+| Blender           | CLI-Rendering eines Würfels          | ${BLENDER_RESULT}      |
+| TensorFlow GPU    | Training mit ROCm-Unterstützung      | ${TF_RESULT}           |
+| HIP Benchmark     | Matrix-Multiplikation via HIP        | ${HIP_STATUS}          |
+TAB
+)
+echo "$TABLE" | tee -a "$LOG"
+
+echo -e "\n✅ Benchmark abgeschlossen. Alle Daten siehe: $LOG"
