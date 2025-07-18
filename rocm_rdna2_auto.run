@@ -3,71 +3,59 @@
 LOG="rocm_setup.log"
 echo "🚀 ROCm Setup gestartet: $(date)" > "$LOG"
 
-# 🧪 System-Check: Ubuntu-Version & Kernel
+# 🧪 Ubuntu-Version & Kernel
 UBUNTU=$(lsb_release -rs)
+UBU_CODENAME=$(lsb_release -sc)
 KERNEL=$(uname -r | cut -d '-' -f1)
 MAJOR=$(echo "$KERNEL" | cut -d '.' -f1)
 MINOR=$(echo "$KERNEL" | cut -d '.' -f2)
 CURRENT="$MAJOR.$MINOR"
 
-echo "📦 Ubuntu-Version: $UBUNTU" | tee -a "$LOG"
+echo "📦 Ubuntu-Version: $UBUNTU ($UBU_CODENAME)" | tee -a "$LOG"
 echo "📦 Kernel-Version: $CURRENT" | tee -a "$LOG"
 
-COMPAT=false
-if [[ "$UBUNTU" == "22.04" && ( "$CURRENT" == "5.15" || "$CURRENT" == "6.8" ) ]]; then
-    COMPAT=true
-elif [[ "$UBUNTU" == "24.04" && ( "$CURRENT" == "6.8" || "$CURRENT" == "6.14" ) ]]; then
-    COMPAT=true
-fi
-
-if [ "$COMPAT" = true ]; then
-    echo "✅ Ubuntu $UBUNTU + Kernel $CURRENT sind mit ROCm kompatibel!" | tee -a "$LOG"
-else
-    echo "❌ Kombination nicht offiziell unterstützt – Installation trotzdem fortgesetzt (Fallback möglich)" | tee -a "$LOG"
-fi
-
-# 🎮 GPU-Erkennung (RX 6000 Serie)
+# 🔍 GPU-Erkennung
 GPU_RAW=$(lspci | grep VGA | grep -i amd)
 echo "🔍 GPU-Erkennung:" | tee -a "$LOG"
 echo "$GPU_RAW" | tee -a "$LOG"
-
 if echo "$GPU_RAW" | grep -Ei "RX 6[4-9]00|6600|6700|6800|6900|Navi 2[1-4]" > /dev/null; then
     echo "✅ RDNA2 GPU erkannt (RX 6000-Serie)" | tee -a "$LOG"
 else
-    echo "⚠️ Keine bekannte RDNA2-GPU erkannt – ggf. manuell prüfen!" | tee -a "$LOG"
+    echo "⚠️ Unbekannte GPU – bitte manuell prüfen!" | tee -a "$LOG"
 fi
 
-# 👤 Benutzerkonfiguration
+# 👤 Benutzergruppen
 sudo usermod -a -G video,render "$USER"
 echo "✅ Benutzer $USER wurde den Gruppen 'video' und 'render' hinzugefügt." | tee -a "$LOG"
-
 sudo sed -i '/^ADD_EXTRA_GROUPS/d' /etc/adduser.conf
 sudo sed -i '/^EXTRA_GROUPS/d' /etc/adduser.conf
 echo 'ADD_EXTRA_GROUPS=1' | sudo tee -a /etc/adduser.conf
 echo 'EXTRA_GROUPS=video render' | sudo tee -a /etc/adduser.conf
-echo "✅ Zukünftige Benutzer erhalten automatisch GPU-Gruppenrechte." | tee -a "$LOG"
+echo "✅ Zukünftige Benutzer erhalten GPU-Gruppenrechte." | tee -a "$LOG"
 
-# 🛠️ System aktualisieren
-sudo apt update && sudo apt upgrade -y && sudo apt dist-upgrade -y
-
-# 🧹 Treiber bereinigen
-sudo apt purge -y rocm-dkms amdgpu-pro amdgpu
-sudo rm -f /etc/apt/sources.list.d/rocm.list
+# 🧹 Vorbereitungen
+sudo apt purge -y amdgpu-pro amdgpu
 sudo apt autoremove -y
 
-# 📥 Funktionierendes ROCm-Repo (trusted=yes + gültige Quelle)
-ROCM_VERSION="6.4.1"
-echo "deb [trusted=yes] https://repo.radeon.com/rocm/apt/debian/ ubuntu main" | sudo tee /etc/apt/sources.list.d/rocm.list
-wget -qO - https://repo.radeon.com/rocm/rocm.gpg.key | sudo apt-key add -
-sudo apt update
+# 📥 Installer-URL je nach Ubuntu-Version
+if [[ "$UBUNTU" == "22.04" ]]; then
+    INSTALLER_URL="https://repo.radeon.com/amdgpu-install/6.4.1/ubuntu/jammy/amdgpu-install_6.4.60401-1_all.deb"
+elif [[ "$UBUNTU" == "24.04" ]]; then
+    INSTALLER_URL="https://repo.radeon.com/amdgpu-install/6.4.1/ubuntu/noble/amdgpu-install_6.4.60401-1_all.deb"
+else
+    echo "❌ Keine passende ROCm-Version für Ubuntu $UBUNTU gefunden." | tee -a "$LOG"
+    exit 1
+fi
 
-# 📦 ROCm installieren
-sudo apt install -y rocm-dev hipcc clinfo rocminfo dkms
+# 📦 Installer herunterladen & installieren
+echo "📥 Lade Installer: $INSTALLER_URL" | tee -a "$LOG"
+wget -q "$INSTALLER_URL" -O amdgpu-install.deb
+sudo apt install -y ./amdgpu-install.deb
 
-# 🔧 Modul laden
-sudo modprobe amdgpu
+# 🚀 ROCm installieren
+sudo amdgpu-install --usecase=rocm --no-dkms --accept-eula
 
-# 🌐 Variablen setzen
+# 🌐 Umgebungsvariablen setzen
 export ROCM_PATH=/opt/rocm
 export PATH="$ROCM_PATH/bin:$PATH"
 export LD_LIBRARY_PATH="$ROCM_PATH/lib:$ROCM_PATH/lib64:$LD_LIBRARY_PATH"
@@ -87,11 +75,11 @@ fi
 source ~/.bashrc
 echo "✅ Umgebungsvariablen aktiv!" | tee -a "$LOG"
 
-# 🧪 Funktionstest
-echo -e "\n🔍 OpenCL-Test:" | tee -a "$LOG"
+# 🔍 Funktionstest
+echo -e "\n🔍 clinfo:" | tee -a "$LOG"
 clinfo | tee -a "$LOG"
 
 echo -e "\n🔍 rocminfo:" | tee -a "$LOG"
 rocminfo | tee -a "$LOG"
 
-echo -e "\n✅ ROCm Setup abgeschlossen mit Version $ROCM_VERSION" | tee -a "$LOG"
+echo -e "\n✅ ROCm Setup abgeschlossen." | tee -a "$LOG"
