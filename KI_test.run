@@ -2,6 +2,18 @@
 LOG="KI_test.log"
 echo "🧪 ROCm Komponententest mit venv gestartet: $(date)" > "$LOG"
 
+# 📦 Python-Version ermitteln
+PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+VENV_PKG="python${PY_VER}-venv"
+
+# 📋 Venv-Paketprüfung
+if ! dpkg -s "$VENV_PKG" &>/dev/null; then
+  echo -e "\n❌ Das Paket $VENV_PKG ist nicht installiert!"
+  echo "🔧 Bitte installiere es mit folgendem Befehl:"
+  echo "    sudo apt install $VENV_PKG"
+  exit 1
+fi
+
 # 🧠 venv einrichten + Pakete installieren
 python3 -m venv ~/rocm_venv
 source ~/rocm_venv/bin/activate
@@ -11,16 +23,9 @@ source ~/rocm_venv/bin/activate
 echo -e "\n🚀 HIP Test..." | tee -a "$LOG"
 hipcc --version &>/dev/null && HIP_STATUS="✅ verfügbar" || HIP_STATUS="❌ fehlt"
 
-# 📘 Jupyter Test (inkl. Diagnoseausgabe)
+# 📘 Jupyter Test
 echo -e "\n📘 Jupyter Test..." | tee -a "$LOG"
-echo "🔍 Jupyter-Versionstest:"
-~/rocm_venv/bin/jupyter --version
-if [[ $? -eq 0 ]]; then
-  JUPYTER_STATUS="✅ verfügbar"
-else
-  JUPYTER_STATUS="❌ fehlt"
-fi
-echo "🧠 JUPYTER_STATUS wurde gesetzt auf: $JUPYTER_STATUS"
+~/rocm_venv/bin/jupyter --version &>/dev/null && JUPYTER_STATUS="✅ verfügbar" || JUPYTER_STATUS="❌ fehlt"
 
 # 🎨 Blender Test
 echo -e "\n🎨 Blender Test..." | tee -a "$LOG"
@@ -30,7 +35,7 @@ blender --version &>/dev/null && BLENDER_STATUS="✅ verfügbar" || BLENDER_STAT
 echo -e "\n🧠 TensorFlow Test..." | tee -a "$LOG"
 ~/rocm_venv/bin/python -c "import tensorflow" &>/dev/null && TENSORFLOW_STATUS="✅ verfügbar" || TENSORFLOW_STATUS="❌ fehlt"
 
-# 📊 Komponententabelle + Zusammenfassung
+# 📊 Komponententabelle
 echo -e "\n📊 Komponententabelle:" | tee -a "$LOG"
 TABLE=$(cat <<TAB
 | Komponente   | Funktionstest         | Status             |
