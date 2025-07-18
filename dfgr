@@ -1,4 +1,0 @@
-mkdir -p ~/rocm && cd ~/rocm
-wget https://raw.githubusercontent.com/Karli000/AMD-Rocm/main/rocm_rdna2_auto.run
-chmod +x rocm_rdna2_auto.run
-./rocm_rdna2_auto.run
