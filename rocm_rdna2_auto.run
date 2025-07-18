@@ -55,9 +55,9 @@ sudo apt purge -y rocm-dkms amdgpu-pro amdgpu
 sudo rm -f /etc/apt/sources.list.d/rocm.list
 sudo apt autoremove -y
 
-# 📥 ROCm Repo & Key hinzufügen
+# 📥 Funktionierendes ROCm-Repo (trusted=yes + gültige Quelle)
 ROCM_VERSION="6.4.1"
-echo "deb [arch=amd64] https://repo.radeon.com/rocm/apt/$ROCM_VERSION/ ubuntu main" | sudo tee /etc/apt/sources.list.d/rocm.list
+echo "deb [trusted=yes] https://repo.radeon.com/rocm/apt/debian/ ubuntu main" | sudo tee /etc/apt/sources.list.d/rocm.list
 wget -qO - https://repo.radeon.com/rocm/rocm.gpg.key | sudo apt-key add -
 sudo apt update
 
