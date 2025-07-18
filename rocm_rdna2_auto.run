@@ -2,29 +2,32 @@
 LOG="rocm_setup.log"
 echo "🚀 ROCm Setup gestartet: $(date)" > "$LOG"
 
-# 🧠 Ubuntu & Kernel-Version erkennen
+# 🎯 Ubuntu & Kernel-Version erkennen
 UBUNTU=$(lsb_release -rs)
 KERNEL=$(uname -r | cut -d '-' -f1)
 MAJOR=$(echo "$KERNEL" | cut -d '.' -f1)
 MINOR=$(echo "$KERNEL" | cut -d '.' -f2)
 CURRENT=$(echo "$MAJOR.$MINOR")
 
-# 🧬 ROCm-Version dynamisch wählen
+# 🧠 ROCm-Version je nach System mit awk bestimmen
 ROCM_VERSION=""
 if [[ "$UBUNTU" == "20.04" ]]; then
   ROCM_VERSION="5.7"
+
 elif [[ "$UBUNTU" == "22.04" ]]; then
   if awk "BEGIN{exit !($CURRENT < 6.3)}"; then
     ROCM_VERSION="6.0"
   else
     ROCM_VERSION="6.1"
   fi
+
 elif [[ "$UBUNTU" == "24.04" ]]; then
   if awk "BEGIN{exit !($CURRENT < 6.15)}"; then
     ROCM_VERSION="6.1"
   else
-    ROCM_VERSION="6.1"  # Fallback für zukünftige Kernel
+    ROCM_VERSION="6.1"
   fi
+
 else
   ROCM_VERSION="5.7"
   echo "⚠️ Unbekannte Kombination: Ubuntu $UBUNTU + Kernel $CURRENT – fallback auf ROCm $ROCM_VERSION" | tee -a "$LOG"
@@ -35,9 +38,9 @@ echo "📦 Verwende ROCm Version: $ROCM_VERSION für Ubuntu $UBUNTU + Kernel $CU
 # 🧹 Alte Treiber entfernen
 sudo apt purge -y rocm-dkms amdgpu-pro amdgpu
 sudo rm -f /etc/apt/sources.list.d/rocm.list
-sudo apt autoremove -y | tee -a "$LOG"
+sudo apt autoremove -y
 
-# 🔗 ROCm Repository hinzufügen
+# 📚 ROCm-Repository hinzufügen
 echo "deb [arch=amd64] https://repo.radeon.com/rocm/apt/$ROCM_VERSION/ ubuntu main" | sudo tee /etc/apt/sources.list.d/rocm.list
 wget -qO - https://repo.radeon.com/rocm/rocm.gpg.key | sudo apt-key add -
 sudo apt update
@@ -55,7 +58,7 @@ export LD_LIBRARY_PATH=$ROCM_PATH/lib:$ROCM_PATH/lib64:$LD_LIBRARY_PATH
 export DEVICE_LIB_PATH=$ROCM_PATH/lib/amdgcn/bitcode
 export HSA_OVERRIDE_GFX_VERSION=10.3.0
 
-# 🔐 In .bashrc speichern
+# 🔐 Variablen in .bashrc speichern
 if ! grep -q "ROCm Setup" ~/.bashrc; then
   echo -e "\n# ROCm Setup" >> ~/.bashrc
   echo "export ROCM_PATH=/opt/rocm" >> ~/.bashrc
@@ -65,7 +68,7 @@ if ! grep -q "ROCm Setup" ~/.bashrc; then
   echo "export HSA_OVERRIDE_GFX_VERSION=10.3.0" >> ~/.bashrc
 fi
 
-# 🔁 Variablen jetzt aktivieren
+# 🔄 Variablen sofort aktivieren
 source ~/.bashrc
 echo "✅ Umgebungsvariablen aktiv!" | tee -a "$LOG"
 
@@ -76,5 +79,4 @@ clinfo | tee -a "$LOG"
 echo -e "\n🔍 ROCm Systeminfo:" | tee -a "$LOG"
 rocminfo | tee -a "$LOG"
 
-# 📊 Abschluss
 echo -e "\n✅ ROCm Setup abgeschlossen mit Version $ROCM_VERSION" | tee -a "$LOG"
