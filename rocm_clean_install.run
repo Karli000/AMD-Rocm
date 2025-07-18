@@ -1,0 +1,51 @@
+#!/bin/bash
+LOG="rocm_setup.log"
+echo "🚀 ROCm Setup gestartet: $(date)" > "$LOG"
+
+# 1. GPU-Erkennung
+echo "🎮 GPU-Erkennung..." | tee -a "$LOG"
+GPU=$(lspci | grep VGA | grep -i AMD)
+if [[ -z "$GPU" ]]; then
+    echo "❌ Keine AMD-GPU erkannt. Abbruch." | tee -a "$LOG"
+    exit 1
+else
+    echo "✅ GPU erkannt: $GPU" | tee -a "$LOG"
+fi
+
+# 2. Kernel-Version prüfen
+echo "🧠 Kernel-Version prüfen..." | tee -a "$LOG"
+KERNEL=$(uname -r)
+echo "➡️ Aktueller Kernel: $KERNEL" | tee -a "$LOG"
+if [[ "$KERNEL" < "5.13" ]]; then
+    echo "⚠️ Kernel möglicherweise nicht kompatibel mit ROCm" | tee -a "$LOG"
+fi
+
+# DKMS-Verfügbarkeit
+if ! dpkg -s dkms &> /dev/null; then
+    echo "📦 Installiere dkms..." | tee -a "$LOG"
+    sudo apt install -y dkms
+else
+    echo "✅ DKMS ist bereits installiert" | tee -a "$LOG"
+fi
+
+# 3. Alte ROCm/AMDGPU-Treiber entfernen
+echo "🧹 Entferne alte Treiber..." | tee -a "$LOG"
+sudo apt remove --purge -y rocm-dkms rock-dkms amdgpu-pro amdgpu
+sudo rm -f /etc/apt/sources.list.d/rocm.list
+sudo apt autoremove -y
+
+# 4. ROCm installieren
+echo "📥 Installiere neue ROCm-Version..." | tee -a "$LOG"
+wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | sudo apt-key add -
+echo 'deb [arch=amd64] http://repo.radeon.com/rocm/apt/debian/ xenial main' | sudo tee /etc/apt/sources.list.d/rocm.list
+sudo apt update
+sudo apt install -y rocm-dkms
+
+# Finaler Check
+echo "🔍 Prüfe Setup..." | tee -a "$LOG"
+lsmod | grep amdgpu | tee -a "$LOG"
+ls -l /dev/kfd | tee -a "$LOG"
+dpkg -l | grep rocm | tee -a "$LOG"
+dmesg | grep amdgpu | tail -n 10 | tee -a "$LOG"
+
+echo -e "\n✅ Fertig! Log-Datei: $LOG"
