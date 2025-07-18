@@ -4,52 +4,59 @@ echo "🚀 ROCm Setup gestartet: $(date)" > "$LOG"
 
 # 1️⃣ GPU-Erkennung
 GPU=$(lspci | grep VGA | grep -i AMD)
-if [[ -z "$GPU" ]]; then echo "❌ Keine AMD-GPU erkannt. Abbruch." | tee -a "$LOG"; exit 1
-else echo "✅ GPU erkannt: $GPU" | tee -a "$LOG"; fi
+if [[ -z "$GPU" ]]; then
+  echo "❌ Keine AMD-GPU erkannt. Abbruch." | tee -a "$LOG"; exit 1
+else
+  echo "✅ GPU erkannt: $GPU" | tee -a "$LOG"
+fi
 
-# 2️⃣ Kernel-Version prüfen
+# 2️⃣ Kernel prüfen (5.13–6.14)
 KERNEL=$(uname -r | cut -d '-' -f1)
 MAJOR=$(echo "$KERNEL" | cut -d '.' -f1); MINOR=$(echo "$KERNEL" | cut -d '.' -f2)
 CURRENT=$(echo "$MAJOR.$MINOR")
-REQUIRED="5.13"; MAX="6.14"
-if awk "BEGIN{exit !($CURRENT >= $REQUIRED && $CURRENT <= $MAX)}"; then
-    echo "✅ Kernel kompatibel mit ROCm ($REQUIRED – $MAX)" | tee -a "$LOG"
-else echo "❌ Kernel außerhalb der Kompatibilität. Abbruch." | tee -a "$LOG"; exit 1; fi
+if awk "BEGIN{exit !($CURRENT >= 5.13 && $CURRENT <= 6.14)}"; then
+  echo "✅ Kernel kompatibel mit ROCm" | tee -a "$LOG"
+else
+  echo "❌ Kernel inkompatibel. Abbruch." | tee -a "$LOG"; exit 1
+fi
 
-# 3️⃣ DKMS installieren falls nötig
+# 3️⃣ DKMS prüfen
 if ! dpkg -s dkms &> /dev/null; then
-    echo "📦 Installiere dkms..." | tee -a "$LOG"; sudo apt install -y dkms
-else echo "✅ DKMS ist vorhanden" | tee -a "$LOG"; fi
+  sudo apt install -y dkms | tee -a "$LOG"
+else
+  echo "✅ DKMS vorhanden" | tee -a "$LOG"
+fi
 
 # 4️⃣ Alte Treiber entfernen
-sudo apt remove --purge -y rocm-dkms rock-dkms amdgpu-pro amdgpu
+sudo apt purge -y rocm-dkms rock-dkms amdgpu-pro amdgpu
 sudo rm -f /etc/apt/sources.list.d/rocm.list
-sudo apt autoremove -y
+sudo apt autoremove -y | tee -a "$LOG"
 
 # 5️⃣ ROCm installieren
 wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | sudo apt-key add -
 echo "deb [arch=amd64] http://repo.radeon.com/rocm/apt/debian/ xenial main" | sudo tee /etc/apt/sources.list.d/rocm.list
-sudo apt update; sudo apt install -y rocm-dkms
+sudo apt update
+sudo apt install -y rocm-dkms rock-dkms | tee -a "$LOG"
 
-# 6️⃣ Systemdiagnose
+# 6️⃣ Systemprüfung
 lsmod | grep amdgpu | tee -a "$LOG"
 ls -l /dev/kfd | tee -a "$LOG"
-dpkg -l | grep rocm | tee -a "$LOG"
 dmesg | grep amdgpu | tail -n 10 | tee -a "$LOG"
 
-# 7️⃣ Umgebungsvariablen + HSA Override
+# 7️⃣ Variablen setzen
 export ROCM_PATH=/opt/rocm
 export PATH=$ROCM_PATH/bin:$PATH
 export LD_LIBRARY_PATH=$ROCM_PATH/lib:$ROCM_PATH/lib64:$LD_LIBRARY_PATH
 export DEVICE_LIB_PATH=$ROCM_PATH/lib/amdgcn/bitcode
 export HSA_OVERRIDE_GFX_VERSION=10.3.0
+
 if ! grep -q "ROCm Setup" ~/.bashrc; then
-echo -e "\n# ROCm Setup" >> ~/.bashrc
-echo "export ROCM_PATH=/opt/rocm" >> ~/.bashrc
-echo "export PATH=\$ROCM_PATH/bin:\$PATH" >> ~/.bashrc
-echo "export LD_LIBRARY_PATH=\$ROCM_PATH/lib:\$ROCM_PATH/lib64:\$LD_LIBRARY_PATH" >> ~/.bashrc
-echo "export DEVICE_LIB_PATH=\$ROCM_PATH/lib/amdgcn/bitcode" >> ~/.bashrc
-echo "export HSA_OVERRIDE_GFX_VERSION=10.3.0" >> ~/.bashrc
+  echo -e "\n# ROCm Setup" >> ~/.bashrc
+  echo "export ROCM_PATH=/opt/rocm" >> ~/.bashrc
+  echo "export PATH=\$ROCM_PATH/bin:\$PATH" >> ~/.bashrc
+  echo "export LD_LIBRARY_PATH=\$ROCM_PATH/lib:\$ROCM_PATH/lib64:\$LD_LIBRARY_PATH" >> ~/.bashrc
+  echo "export DEVICE_LIB_PATH=\$ROCM_PATH/lib/amdgcn/bitcode" >> ~/.bashrc
+  echo "export HSA_OVERRIDE_GFX_VERSION=10.3.0" >> ~/.bashrc
 fi
 
 # 8️⃣ OpenCL Test
@@ -62,18 +69,22 @@ cat << 'EOF' > vector_add.cpp
 #include <hip/hip_runtime.h>
 #include <iostream>
 #define N 100
-__global__ void vector_add(const int* A, const int* B, int* C) { int i = threadIdx.x; C[i] = A[i] + B[i]; }
+__global__ void vector_add(const int* A, const int* B, int* C) {
+  int i = threadIdx.x;
+  C[i] = A[i] + B[i];
+}
 int main() {
-int A[N], B[N], C[N];
-for (int i = 0; i < N; i++) { A[i] = i; B[i] = i * 2; }
-int *d_A, *d_B, *d_C;
-hipMalloc(&d_A, N * sizeof(int)); hipMalloc(&d_B, N * sizeof(int)); hipMalloc(&d_C, N * sizeof(int));
-hipMemcpy(d_A, A, N * sizeof(int), hipMemcpyHostToDevice);
-hipMemcpy(d_B, B, N * sizeof(int), hipMemcpyHostToDevice);
-hipLaunchKernelGGL(vector_add, dim3(1), dim3(N), 0, 0, d_A, d_B, d_C);
-hipMemcpy(C, d_C, N * sizeof(int), hipMemcpyDeviceToHost);
-for (int i = 0; i < 5; i++) { std::cout << A[i] << " + " << B[i] << " = " << C[i] << std::endl; }
-hipFree(d_A); hipFree(d_B); hipFree(d_C); return 0;
+  int A[N], B[N], C[N];
+  for (int i = 0; i < N; i++) { A[i] = i; B[i] = i * 2; }
+  int *d_A, *d_B, *d_C;
+  hipMalloc(&d_A, N * sizeof(int)); hipMalloc(&d_B, N * sizeof(int)); hipMalloc(&d_C, N * sizeof(int));
+  hipMemcpy(d_A, A, N * sizeof(int), hipMemcpyHostToDevice);
+  hipMemcpy(d_B, B, N * sizeof(int), hipMemcpyHostToDevice);
+  hipLaunchKernelGGL(vector_add, dim3(1), dim3(N), 0, 0, d_A, d_B, d_C);
+  hipMemcpy(C, d_C, N * sizeof(int), hipMemcpyDeviceToHost);
+  for (int i = 0; i < 5; i++) std::cout << A[i] << " + " << B[i] << " = " << C[i] << std::endl;
+  hipFree(d_A); hipFree(d_B); hipFree(d_C);
+  return 0;
 }
 EOF
 /opt/rocm/bin/hipcc vector_add.cpp -o vector_add_test
@@ -87,37 +98,44 @@ cat << 'EOF' > hip_benchmark.cpp
 #include <iostream>
 #include <chrono>
 #define N 1000000
-__global__ void flops_test(float* a, float* b, float* c) { int i = blockIdx.x * blockDim.x + threadIdx.x; if (i < N) c[i] = a[i] * b[i] + b[i] * a[i]; }
+__global__ void flops_test(float* a, float* b, float* c) {
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if (i < N) c[i] = a[i] * b[i] + b[i] * a[i];
+}
 int main() {
-float *a, *b, *c, *d_a, *d_b, *d_c;
-a = new float[N]; b = new float[N]; c = new float[N];
-for (int i = 0; i < N; i++) { a[i] = 1.1f; b[i] = 2.2f; }
-hipMalloc(&d_a, N * sizeof(float)); hipMalloc(&d_b, N * sizeof(float)); hipMalloc(&d_c, N * sizeof(float));
-hipMemcpy(d_a, a, N * sizeof(float), hipMemcpyHostToDevice);
-hipMemcpy(d_b, b, N * sizeof(float), hipMemcpyHostToDevice);
-auto start = std::chrono::high_resolution_clock::now();
-flops_test<<<(N+255)/256, 256>>>(d_a, d_b, d_c); hipDeviceSynchronize();
-auto end = std::chrono::high_resolution_clock::now();
-std::chrono::duration<double> elapsed = end - start;
-double flops = (double)(N * 2) / elapsed.count();
-std::cout << "💥 FLOPs/s: " << flops / 1e9 << " GFLOPs" << std::endl;
-hipFree(d_a); hipFree(d_b); hipFree(d_c); delete[] a; delete[] b; delete[] c; return 0;
+  float *a, *b, *c, *d_a, *d_b, *d_c;
+  a = new float[N]; b = new float[N]; c = new float[N];
+  for (int i = 0; i < N; i++) { a[i] = 1.1f; b[i] = 2.2f; }
+  hipMalloc(&d_a, N * sizeof(float)); hipMalloc(&d_b, N * sizeof(float)); hipMalloc(&d_c, N * sizeof(float));
+  hipMemcpy(d_a, a, N * sizeof(float), hipMemcpyHostToDevice);
+  hipMemcpy(d_b, b, N * sizeof(float), hipMemcpyHostToDevice);
+  auto start = std::chrono::high_resolution_clock::now();
+  flops_test<<<(N+255)/256, 256>>>(d_a, d_b, d_c);
+  hipDeviceSynchronize();
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double> elapsed = end - start;
+  double flops = (double)(N * 2) / elapsed.count();
+  std::cout << "💥 FLOPs/s: " << flops / 1e9 << " GFLOPs" << std::endl;
+  hipFree(d_a); hipFree(d_b); hipFree(d_c);
+  delete[] a; delete[] b; delete[] c;
+  return 0;
 }
 EOF
 /opt/rocm/bin/hipcc hip_benchmark.cpp -o hip_benchmark
 ./hip_benchmark | tee -a "$LOG"
 cd ~ && rm -rf ~/hip_benchmark
 
-# 🔁 rocminfo
+# 🔁 rocminfo Diagnose
 sudo apt install -y rocminfo
 rocminfo | tee -a "$LOG"
 
 # 📊 Zusammenfassung
 echo -e "\n📊 ROCm Installationsübersicht:" | tee -a "$LOG"
-echo "| Schritt | Beschreibung                                       | Ergebnis / Status            |" | tee -a "$LOG"
-echo "|---------|----------------------------------------------------|------------------------------|" | tee -a "$LOG"
-echo "| 1️⃣      | AMD GPU erkannt                                    | ✅ $GPU                     |" | tee -a "$LOG"
-echo "| 2️⃣      | Kernel-Version ($KERNEL) geprüft                   | ✅ kompatibel mit ROCm      |" | tee -a "$LOG"
-echo "| 3️⃣      | DKMS-Verfügbarkeit sichergestellt                 | ✅ vorhanden oder installiert |" | tee -a "$LOG"
-echo "| 4️⃣      | Alte AMD / ROCm Treiber entfernt                   | ✅ System bereinigt         |" | tee -a "$LOG"
-echo "| 5️⃣      | ROCm über APT installiert
+echo "| Schritt  | Beschreibung                                          | Ergebnis                       |" | tee -a "$LOG"
+echo "|----------|-------------------------------------------------------|-------------------------------|" | tee -a "$LOG"
+echo "| 1️⃣       | GPU erkannt                                           | ✅ $GPU                        |" | tee -a "$LOG"
+echo "| 2️⃣       | Kernel geprüft (Version: $KERNEL)                     | ✅ kompatibel mit ROCm         |" | tee -a "$LOG"
+echo "| 3️⃣       | DKMS installiert oder bereits vorhanden              | ✅ OK                          |" | tee -a "$LOG"
+echo "| 4️⃣       | Alte Treiber entfernt                                | ✅ System bereinigt            |" | tee -a "$LOG"
+echo "| 5️⃣       | ROCm & rock-dkms installiert                         | ✅ Pakete installiert          |" | tee -a "$LOG"
+echo "| 6️⃣       | System
