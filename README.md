@@ -49,7 +49,7 @@ Testet zentrale Tools für KI-Workloads nach der Installation von ROCm 6.4.1.
 ### ▶️ Ausführung
 
 ```bash
-wget https://raw.githubusercontent.com/Karli000/AMD-Rocm/main/KI_test.run
+wget https://raw.githubusercontent.com/Karli000/AMD-Rocm/main/KI_test.run -O KI_test.run
 chmod +x KI_test.run
 ./KI_test.run
 ```
