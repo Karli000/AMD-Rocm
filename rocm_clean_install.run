@@ -2,7 +2,7 @@
 LOG="rocm_setup.log"
 echo "🚀 ROCm Setup gestartet: $(date)" > "$LOG"
 
-# 1. GPU-Erkennung
+# 1️⃣ GPU-Erkennung
 echo "🎮 GPU-Erkennung..." | tee -a "$LOG"
 GPU=$(lspci | grep VGA | grep -i AMD)
 if [[ -z "$GPU" ]]; then
@@ -12,15 +12,24 @@ else
     echo "✅ GPU erkannt: $GPU" | tee -a "$LOG"
 fi
 
-# 2. Kernel-Version prüfen
+# 2️⃣ Kernel-Version prüfen (Kompatibilität: 5.13 – 6.14)
 echo "🧠 Kernel-Version prüfen..." | tee -a "$LOG"
-KERNEL=$(uname -r)
+KERNEL=$(uname -r | cut -d '-' -f1)
+MAJOR=$(echo "$KERNEL" | cut -d '.' -f1)
+MINOR=$(echo "$KERNEL" | cut -d '.' -f2)
+CURRENT=$(echo "$MAJOR.$MINOR")
 echo "➡️ Aktueller Kernel: $KERNEL" | tee -a "$LOG"
-if [[ "$KERNEL" < "5.13" ]]; then
-    echo "⚠️ Kernel möglicherweise nicht kompatibel mit ROCm" | tee -a "$LOG"
+
+REQUIRED="5.13"
+MAX="6.14"
+if awk "BEGIN{exit !($CURRENT >= $REQUIRED && $CURRENT <= $MAX)}"; then
+    echo "✅ Kernel ist kompatibel mit ROCm ($REQUIRED – $MAX)" | tee -a "$LOG"
+else
+    echo "❌ Kernel außerhalb der ROCm-Kompatibilität. Abbruch." | tee -a "$LOG"
+    exit 1
 fi
 
-# DKMS-Verfügbarkeit
+# 3️⃣ Prüfe DKMS
 if ! dpkg -s dkms &> /dev/null; then
     echo "📦 Installiere dkms..." | tee -a "$LOG"
     sudo apt install -y dkms
@@ -28,24 +37,24 @@ else
     echo "✅ DKMS ist bereits installiert" | tee -a "$LOG"
 fi
 
-# 3. Alte ROCm/AMDGPU-Treiber entfernen
-echo "🧹 Entferne alte Treiber..." | tee -a "$LOG"
+# 4️⃣ Alte ROCm-/AMDGPU-Treiber entfernen
+echo "🧹 Entferne alte AMD-Treiber..." | tee -a "$LOG"
 sudo apt remove --purge -y rocm-dkms rock-dkms amdgpu-pro amdgpu
 sudo rm -f /etc/apt/sources.list.d/rocm.list
 sudo apt autoremove -y
 
-# 4. ROCm installieren
+# 5️⃣ Neue ROCm-Version installieren
 echo "📥 Installiere neue ROCm-Version..." | tee -a "$LOG"
 wget -qO - http://repo.radeon.com/rocm/rocm.gpg.key | sudo apt-key add -
-echo 'deb [arch=amd64] http://repo.radeon.com/rocm/apt/debian/ xenial main' | sudo tee /etc/apt/sources.list.d/rocm.list
+echo "deb [arch=amd64] http://repo.radeon.com/rocm/apt/debian/ xenial main" | sudo tee /etc/apt/sources.list.d/rocm.list
 sudo apt update
 sudo apt install -y rocm-dkms
 
-# Finaler Check
-echo "🔍 Prüfe Setup..." | tee -a "$LOG"
+# 6️⃣ Systemprüfung
+echo "🔍 Prüfe GPU-Setup..." | tee -a "$LOG"
 lsmod | grep amdgpu | tee -a "$LOG"
 ls -l /dev/kfd | tee -a "$LOG"
 dpkg -l | grep rocm | tee -a "$LOG"
 dmesg | grep amdgpu | tail -n 10 | tee -a "$LOG"
 
-echo -e "\n✅ Fertig! Log-Datei: $LOG"
+echo -e "\n✅ ROCm Setup abgeschlossen. Log-Datei gespeichert: $LOG"
