@@ -11,7 +11,7 @@ source ~/rocm_venv/bin/activate
 echo -e "\n🚀 HIP Test..." | tee -a "$LOG"
 hipcc --version &>/dev/null && HIP_STATUS="✅ verfügbar" || HIP_STATUS="❌ fehlt"
 
-# 📘 Jupyter Test (modern CLI-Prüfung)
+# 📘 Jupyter Test (CLI-basiert, robust für alle Versionen)
 echo -e "\n📘 Jupyter Test..." | tee -a "$LOG"
 ~/rocm_venv/bin/jupyter --version &>/dev/null && JUPYTER_STATUS="✅ verfügbar" || JUPYTER_STATUS="❌ fehlt"
 
