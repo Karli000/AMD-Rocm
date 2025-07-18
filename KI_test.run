@@ -2,15 +2,18 @@
 LOG="KI_test.log"
 echo "🧪 ROCm Komponententest mit venv gestartet: $(date)" > "$LOG"
 
-# 📦 Python-Version ermitteln
+# 📦 Python-Version ermitteln (z. B. 3.12)
 PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 VENV_PKG="python${PY_VER}-venv"
+FULL_PKG="python${PY_VER}-full"
 
-# 🛠️ Venv-Paket ggf. automatisch installieren
-if ! dpkg -s "$VENV_PKG" &>/dev/null; then
-  echo -e "\n⚙️ Installiere fehlendes Paket: $VENV_PKG ..."
+# 🔍 Test: ensurepip vorhanden?
+if ! python3 -m ensurepip &>/dev/null; then
+  echo -e "\n⚙️ Python venv/ensurepip fehlen – installiere:"
+  echo "🔧 sudo apt update"
+  echo "🔧 sudo apt install -y $VENV_PKG $FULL_PKG"
   sudo apt update
-  sudo apt install -y "$VENV_PKG"
+  sudo apt install -y "$VENV_PKG" "$FULL_PKG"
 fi
 
 # 🧠 venv einrichten + Pakete installieren
@@ -22,7 +25,7 @@ pip install --upgrade pip notebook tensorflow matplotlib pandas
 echo -e "\n🚀 HIP Test..." | tee -a "$LOG"
 hipcc --version &>/dev/null && HIP_STATUS="✅ verfügbar" || HIP_STATUS="❌ fehlt"
 
-# 📘 Jupyter Test (CLI-basiert)
+# 📘 Jupyter Test
 echo -e "\n📘 Jupyter Test..." | tee -a "$LOG"
 ~/rocm_venv/bin/jupyter --version &>/dev/null && JUPYTER_STATUS="✅ verfügbar" || JUPYTER_STATUS="❌ fehlt"
 
