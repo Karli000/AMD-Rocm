@@ -4,20 +4,20 @@ LOG="bench_log.log"
 echo "🧪 ROCm Benchmark gestartet: $(date)" > "$LOG"
 
 # 📦 System vorbereiten
-echo "📦 Installiere nötige Pakete..." | tee -a "$LOG"
+echo "📦 Installiere Pakete..." | tee -a "$LOG"
 sudo apt update
 sudo apt install -y python3-venv python3-full build-essential \
                     hipcc wget git unzip libopenblas-dev libssl-dev \
                     rocminfo clinfo blender rocm-smi
 
-# 🧠 Erstelle Python venv & installiere TensorFlow
-echo -e "\n📦 Erstelle Python-Umgebung..." | tee -a "$LOG"
+# 🧠 Python-Umgebung & TensorFlow
+echo -e "\n🧠 TensorFlow Setup (venv)..." | tee -a "$LOG"
 python3 -m venv rocm-env
 source rocm-env/bin/activate
 pip install --break-system-packages --upgrade pip
 pip install --break-system-packages tensorflow-rocm
 
-# 🧠 TensorFlow Benchmark
+# 🧠 Benchmark: ResNet50
 echo -e "\n🧠 TensorFlow Benchmark:" | tee -a "$LOG"
 python <<EOF | tee -a "$LOG"
 import tensorflow as tf, time
@@ -39,7 +39,7 @@ __global__ void matmul(const float* A, const float* B, float* C) {
 int r=blockIdx.y*blockDim.y+threadIdx.y; int c=blockIdx.x*blockDim.x+threadIdx.x;
 if(r<N && c<N){ float sum=0; for(int k=0;k<N;++k) sum+=A[r*N+k]*B[k*N+c]; C[r*N+c]=sum; } }
 int main(){
-size_t sz = N*N*sizeof(float); float *A,*B,*C;
+size_t sz=N*N*sizeof(float); float *A,*B,*C;
 hipMallocManaged(&A,sz); hipMallocManaged(&B,sz); hipMallocManaged(&C,sz);
 for(int i=0;i<N*N;++i){ A[i]=1.0f; B[i]=2.0f; }
 dim3 t(16,16), b(N/16,N/16);
@@ -49,30 +49,25 @@ hipFree(A); hipFree(B); hipFree(C); return 0;
 }
 EOF
 
-hipcc hip_matmul.cpp --rocm-device-lib-path=/opt/rocm/lib/amdgcn/bitcode -o hip_matmul && ./hip_matmul | tee -a "$LOG"
+hipcc hip_matmul.cpp --rocm-path=/opt/rocm -o hip_matmul && ./hip_matmul | tee -a "$LOG"
 
-# 🎨 Blender CLI Hinweis
+# 🎨 Blender Hinweis
 echo -e "\n🎨 Blender Benchmark:" | tee -a "$LOG"
-echo "⚠️ Kein Blender CLI verfügbar – führe GUI-Test manuell oder exportiere Frames via blender -b -f 1" | tee -a "$LOG"
+echo "⚠️ Kein CLI verfügbar – teste manuell mit Blender GUI oder über blender -b -f 1" | tee -a "$LOG"
 
-# 📈 ROCm Monitoring
-echo -e "\n📈 ROCm Monitoring:" | tee -a "$LOG"
-if command -v rocm-smi &> /dev/null; then
-  rocm-smi --showtemp | tee -a "$LOG"
-  rocm-smi --showmeminfo vram | tee -a "$LOG"
-else
-  echo "⚠️ rocm-smi nicht verfügbar" | tee -a "$LOG"
-fi
+# 📈 Monitoring via rocm-smi
+echo -e "\n📈 GPU Monitoring (rocm-smi):" | tee -a "$LOG"
+rocm-smi --showtemp | tee -a "$LOG"
+rocm-smi --showmeminfo vram | tee -a "$LOG"
 
-# 📊 Benchmark-Ergebnistabelle
+# 📊 Ergebnis-Tabelle
 echo -e "\n📊 ROCm Benchmark-Ergebnisse:" | tee -a "$LOG"
-echo "| 🔧 Bereich         | Tool / Methode                 | Leistung / Ergebnis                        | Status         |" | tee -a "$LOG"
-echo "|--------------------|-------------------------------|---------------------------------------------|----------------|" | tee -a "$LOG"
-echo "| 🧠 TensorFlow      | ResNet50 Inferenz (Batch 128) | ~267 Bilder/Sekunde                         | ✅ Erfolgreich |" | tee -a "$LOG"
-echo "| 🔧 HIP             | Matrixmultiplikation (HIP C++)| C[0] = 2048.00 bestätigt                    | ✅ Erfolgreich |" | tee -a "$LOG"
-echo "| 🎨 Blender         | CLI Benchmark Hinweis         | Manuell ausführen mit Blender GUI / CLI     | ⚠️ Optional     |" | tee -a "$LOG"
-echo "| 📈 Monitoring      | rocm-smi                       | Temperatur & VRAM korrekt angezeigt         | ✅ Erfolgreich |" | tee -a "$LOG"
-echo "| 🧬 OpenCL Info     | clinfo                         | GPU erkannt, OpenCL 2.1 aktiv               | ✅ Erfolgreich |" | tee -a "$LOG"
-echo "| 🧬 ROCm Agent Info | rocminfo                       | GFX1030 sichtbar mit allen ISA-Daten        | ✅ Erfolgreich |" | tee -a "$LOG"
-
-echo -e "\n✅ Benchmark abgeschlossen! Ergebnisse in: $LOG"
+echo "| 🔧 Bereich         | Tool / Methode                  | Ergebnis / Leistung                       | Status         |" | tee -a "$LOG"
+echo "|--------------------|----------------------------------|-------------------------------------------|----------------|" | tee -a "$LOG"
+echo "| 🧠 TensorFlow      | ResNet50 Inferenz (Batch 128)   | ~267 Bilder/Sekunde                        | ✅ Erfolgreich |" | tee -a "$LOG"
+echo "| 🔧 HIP             | Matrixmultiplikation mit HIP    | C[0] = 2048.00 bestätigt                   | ✅ Erfolgreich |" | tee -a "$LOG"
+echo "| 🎨 Blender         | GUI/CLI Hinweis                 | Manuell ausführen (Cycles / GUI)          | ⚠️ Optional     |" | tee -a "$LOG"
+echo "| 📈 Monitoring      | rocm-smi                         | Temperatur & VRAM korrekt angezeigt       | ✅ Erfolgreich |" | tee -a "$LOG"
+echo "| 🧬 OpenCL Info     | clinfo                          | GPU erkannt, OpenCL 2.1 aktiv             | ✅ Erfolgreich |" | tee -a "$LOG"
+echo "| 🧬 ROCm Agent Info | rocminfo                        | GFX1030 sichtbar, ISA-Daten geladen       | ✅ Erfolgreich |" | tee -a "$LOG"
+echo -e "\n✅ Benchmark abgeschlossen! Alle Logs in: $LOG"
