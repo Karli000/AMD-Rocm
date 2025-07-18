@@ -2,32 +2,36 @@
 LOG="rocm_setup.log"
 echo "🚀 ROCm Benchmarks gestartet: $(date)" > "$LOG"
 
+# 🧠 Virtuelles Python-Environment einrichten
+python3 -m venv ~/rocm_venv
+source ~/rocm_venv/bin/activate
+~/rocm_venv/bin/pip install --upgrade pip notebook tensorflow
+
 # 🔬 Jupyter Benchmark
-pip install --upgrade pip notebook tensorflow
 echo -e "\n🔬 Jupyter Test..." | tee -a "$LOG"
 START_JUP=$(date +%s)
-python3 -c "from notebook import notebookapp; print('✅ Jupyter OK')"
+~/rocm_venv/bin/python -c "from notebook import notebookapp; print('✅ Jupyter OK')"
 END_JUP=$(date +%s)
 JUP_TIME=$((END_JUP - START_JUP))
 echo "⏱️ Jupyter Startzeit: ${JUP_TIME} Sek." | tee -a "$LOG"
 
-# 🎨 Blender Rendering
-sudo apt install blender -y
+# 🎨 Blender Rendering über externe Datei
 echo -e "\n🎨 Blender Test..." | tee -a "$LOG"
-BLENDER_OK=$(blender -b --factory-startup -P - <<EOF
+cat <<EOF > ~/rocm_benchmarks/blender_render.py
 import bpy
 bpy.ops.mesh.primitive_cube_add(location=(0,0,0))
 bpy.context.scene.render.filepath = "/tmp/test_render.png"
 bpy.ops.render.render(write_still=True)
 print("✅ Blender abgeschlossen")
 EOF
-)
+sudo apt install blender -y
+BLENDER_OK=$(blender -b -P ~/rocm_benchmarks/blender_render.py)
 echo "$BLENDER_OK" | tee -a "$LOG"
 [[ "$BLENDER_OK" == *"✅ Blender abgeschlossen"* ]] && BLENDER_RESULT="✅ Erfolgreich" || BLENDER_RESULT="❌ Fehler"
 
 # 🧠 TensorFlow GPU-Test
 echo -e "\n🧠 TensorFlow Test..." | tee -a "$LOG"
-TF_STATUS=$(python3 - <<EOF
+TF_STATUS=$(~/rocm_venv/bin/python - <<EOF
 import tensorflow as tf
 gpu = tf.config.list_physical_devices('GPU')
 if gpu: print("✅ GPU erkannt")
@@ -66,11 +70,14 @@ int main() {
     return 0;
 }
 EOF
-hipcc hip_mm.cpp -o hip_mm
+
+# Device lib fix
+export DEVICE_LIB_PATH="/opt/rocm/lib/amdgcn/bitcode"
+hipcc hip_mm.cpp -o hip_mm --rocm-device-lib-path=$DEVICE_LIB_PATH
 HIP_RESULT=$(./hip_mm | tee -a "$LOG")
 [[ "$HIP_RESULT" == *"✅ HIP Benchmark"* ]] && HIP_STATUS="✅ Erfolgreich" || HIP_STATUS="❌ Fehler"
 
-# 📊 Ergebnistabelle (Markdown-Ausgabe)
+# 📊 Ergebnistabelle
 echo -e "\n📊 Benchmark-Tabelle:" | tee -a "$LOG"
 TABLE=$(cat <<TAB
 | Test              | Beschreibung                         | Ergebnis               |
@@ -83,4 +90,4 @@ TAB
 )
 echo "$TABLE" | tee -a "$LOG"
 
-echo -e "\n✅ Benchmark abgeschlossen. Alle Daten siehe: $LOG"
+echo -e "\n✅ Benchmark abgeschlossen. Ergebnisse siehe: $LOG"
