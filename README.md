@@ -1,7 +1,3 @@
-📘 Na klar, Alex! Hier sind zwei passende **README-Beschreibungen** für deine Skripte `rocm_rdna2_auto.run` und `KI_test.run`, die du direkt in dein GitHub-Repository oder als Dokumentation verwenden kannst:
-
----
-
 ## 📦 `rocm_rdna2_auto.run` – Automatisches ROCm-Setup für RDNA2-Systeme
 
 ### 🔧 Zweck  
