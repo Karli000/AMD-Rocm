@@ -3,7 +3,7 @@
 LOG="rocm_setup.log"
 echo "🚀 ROCm Setup gestartet: $(date)" > "$LOG"
 
-# 🧪 System-Check: Ubuntu-Version & Kernel
+# 🧪 Schritt 1 – System-Check: Ubuntu-Version & Kernel
 UBUNTU=$(lsb_release -rs)
 KERNEL=$(uname -r | cut -d '-' -f1)
 MAJOR=$(echo "$KERNEL" | cut -d '.' -f1)
@@ -13,7 +13,6 @@ CURRENT="$MAJOR.$MINOR"
 echo "📦 Ubuntu-Version: $UBUNTU" | tee -a "$LOG"
 echo "📦 Kernel-Version: $CURRENT" | tee -a "$LOG"
 
-# ✅ ROCm-Kompatibilität
 COMPAT=false
 if [[ "$UBUNTU" == "22.04" && ( "$CURRENT" == "5.15" || "$CURRENT" == "6.8" ) ]]; then
     COMPAT=true
@@ -38,7 +37,7 @@ else
     echo "⚠️ Keine bekannte RDNA2-GPU erkannt – ggf. manuell prüfen!" | tee -a "$LOG"
 fi
 
-# 👤 Gruppenrechte für aktuellen und zukünftige Benutzer
+# 👤 Benutzerkonfiguration
 sudo usermod -a -G video,render $USER
 echo "✅ Benutzer $USER wurde den Gruppen 'video' und 'render' hinzugefügt." | tee -a "$LOG"
 
@@ -48,27 +47,27 @@ echo 'ADD_EXTRA_GROUPS=1' | sudo tee -a /etc/adduser.conf
 echo 'EXTRA_GROUPS=video render' | sudo tee -a /etc/adduser.conf
 echo "✅ Zukünftige Benutzer erhalten automatisch GPU-Gruppenrechte." | tee -a "$LOG"
 
-# 🛠️ System aktualisieren
+# 🛠️ Schritt 2 – System aktualisieren
 sudo apt update && sudo apt upgrade -y && sudo apt dist-upgrade -y
 
-# 🧹 Alte Treiber bereinigen
+# 🧹 Treiber bereinigen
 sudo apt purge -y rocm-dkms amdgpu-pro amdgpu
 sudo rm -f /etc/apt/sources.list.d/rocm.list
 sudo apt autoremove -y
 
-# 📥 ROCm Repo & GPG-Key hinzufügen
+# 📥 ROCm Repo & Key hinzufügen
 ROCM_VERSION="6.4.1"
 echo "deb [arch=amd64] https://repo.radeon.com/rocm/apt/$ROCM_VERSION/ ubuntu main" | sudo tee /etc/apt/sources.list.d/rocm.list
 wget -qO - https://repo.radeon.com/rocm/rocm.gpg.key | sudo apt-key add -
 sudo apt update
 
-# 📦 ROCm-Pakete installieren
+# 📦 ROCm installieren
 sudo apt install -y rocm-dev hipcc clinfo rocminfo dkms
 
 # 🔧 Modul laden
 sudo modprobe amdgpu
 
-# 🌐 Umgebungsvariablen setzen
+# 🌐 Variablen setzen
 export ROCM_PATH=/opt/rocm
 export PATH=$ROCM_PATH/bin:$PATH
 export LD_LIBRARY_PATH=$ROCM_PATH/lib:$ROCM_PATH/lib64:$LD_LIBRARY_PATH
@@ -88,7 +87,7 @@ fi
 source ~/.bashrc
 echo "✅ Umgebungsvariablen aktiv!" | tee -a "$LOG"
 
-# 🔍 Funktionstests
+# 🧪 Funktionstest
 echo -e "\n🔍 OpenCL-Test:" | tee -a "$LOG"
 clinfo | tee -a "$LOG"
 
