@@ -17,35 +17,39 @@ elif [[ "$UBUNTU" == "22.04" && "$CURRENT" < "6.3" ]]; then
   ROCM_VERSION="6.0"
 elif [[ "$UBUNTU" == "22.04" && "$CURRENT" >= "6.3" ]]; then
   ROCM_VERSION="6.1"
+elif [[ "$UBUNTU" == "24.04" && "$CURRENT" < "6.15" ]]; then
+  ROCM_VERSION="6.1"
 else
-  ROCM_VERSION="5.7"  # Fallback
+  ROCM_VERSION="6.1"  # Fallback auch für 24.04.2 mit 6.14.x
   echo "⚠️ Unbekannte Kombination: Ubuntu $UBUNTU + Kernel $CURRENT – fallback auf ROCm $ROCM_VERSION" | tee -a "$LOG"
 fi
 
 echo "📦 Verwende ROCm Version: $ROCM_VERSION für Ubuntu $UBUNTU + Kernel $CURRENT" | tee -a "$LOG"
 
-# 🧹 Alte Treiber entfernen
+# 🧹 Alte ROCm/AMDGPU-Treiber entfernen
 sudo apt purge -y rocm-dkms amdgpu-pro amdgpu
 sudo rm -f /etc/apt/sources.list.d/rocm.list
-sudo apt autoremove -y
+sudo apt autoremove -y | tee -a "$LOG"
 
-# 📚 Repo & Schlüssel hinzufügen
+# 📚 ROCm-Repository hinzufügen
 echo "deb [arch=amd64] https://repo.radeon.com/rocm/apt/$ROCM_VERSION/ ubuntu main" | sudo tee /etc/apt/sources.list.d/rocm.list
 wget -qO - https://repo.radeon.com/rocm/rocm.gpg.key | sudo apt-key add -
 sudo apt update
 
-# 📥 Pakete installieren
+# 📥 ROCm-Komponenten installieren
 sudo apt install -y rocm-dev hipcc clinfo rocminfo dkms
 
-# 🔗 Module laden
+# 🔗 Kernelmodul laden
 sudo modprobe amdgpu
 
-# 🧬 Variablen setzen + dauerhaft speichern
+# 🧬 Umgebungsvariablen + HSA Override
 export ROCM_PATH=/opt/rocm
 export PATH=$ROCM_PATH/bin:$PATH
 export LD_LIBRARY_PATH=$ROCM_PATH/lib:$ROCM_PATH/lib64:$LD_LIBRARY_PATH
 export DEVICE_LIB_PATH=$ROCM_PATH/lib/amdgcn/bitcode
 export HSA_OVERRIDE_GFX_VERSION=10.3.0
+
+# 🔒 In .bashrc dauerhaft speichern
 if ! grep -q "ROCm Setup" ~/.bashrc; then
   echo -e "\n# ROCm Setup" >> ~/.bashrc
   echo "export ROCM_PATH=/opt/rocm" >> ~/.bashrc
@@ -55,15 +59,17 @@ if ! grep -q "ROCm Setup" ~/.bashrc; then
   echo "export HSA_OVERRIDE_GFX_VERSION=10.3.0" >> ~/.bashrc
 fi
 
-# 🔄 Variablen sofort laden
+# 🔄 Variablen sofort aktivieren
 source ~/.bashrc
 echo "✅ Umgebungsvariablen aktiv!" | tee -a "$LOG"
 
-# 🔍 Tests starten
+# 🧪 OpenCL-Test
 echo -e "\n🔍 OpenCL-Test:" | tee -a "$LOG"
 clinfo | tee -a "$LOG"
 
+# 🧪 rocminfo
 echo -e "\n🔍 rocminfo:" | tee -a "$LOG"
 rocminfo | tee -a "$LOG"
 
+# 🧾 Zusammenfassung
 echo -e "\n✅ ROCm Setup abgeschlossen mit Version $ROCM_VERSION" | tee -a "$LOG"
