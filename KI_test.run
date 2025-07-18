@@ -11,9 +11,9 @@ source ~/rocm_venv/bin/activate
 echo -e "\n🚀 HIP Test..." | tee -a "$LOG"
 hipcc --version &>/dev/null && HIP_STATUS="✅ verfügbar" || HIP_STATUS="❌ fehlt"
 
-# 📘 Jupyter Test
+# 📘 Jupyter Test (modern CLI-Prüfung)
 echo -e "\n📘 Jupyter Test..." | tee -a "$LOG"
-~/rocm_venv/bin/python -c "import notebook" &>/dev/null && JUPYTER_STATUS="✅ verfügbar" || JUPYTER_STATUS="❌ fehlt"
+~/rocm_venv/bin/jupyter --version &>/dev/null && JUPYTER_STATUS="✅ verfügbar" || JUPYTER_STATUS="❌ fehlt"
 
 # 🎨 Blender Test
 echo -e "\n🎨 Blender Test..." | tee -a "$LOG"
@@ -24,11 +24,12 @@ echo -e "\n🧠 TensorFlow Test..." | tee -a "$LOG"
 ~/rocm_venv/bin/python -c "import tensorflow" &>/dev/null && TENSORFLOW_STATUS="✅ verfügbar" || TENSORFLOW_STATUS="❌ fehlt"
 
 # 📊 Ergebnistabelle
+echo -e "\n📊 Komponententabelle:" | tee -a "$LOG"
 TABLE=$(cat <<TAB
 | Komponente   | Funktionstest         | Status             |
 |--------------|-----------------------|--------------------|
 | HIP          | hipcc --version       | ${HIP_STATUS}      |
-| Jupyter      | Import im venv        | ${JUPYTER_STATUS}  |
+| Jupyter      | CLI-Versionstest      | ${JUPYTER_STATUS}  |
 | Blender      | blender --version     | ${BLENDER_STATUS}  |
 | TensorFlow   | Import im venv        | ${TENSORFLOW_STATUS}|
 TAB
