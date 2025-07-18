@@ -1,0 +1,76 @@
+#!/bin/bash
+# ROCm RX6000 Installer .run-Datei – für Alex (amdpouw1)
+
+echo "🔧 Prüfe auf wget..."
+if ! command -v wget &> /dev/null; then
+  echo "📥 wget wird installiert..."
+  sudo apt-get update -y -qq
+  yes | sudo apt-get install -y wget
+fi
+
+echo "🔧 Entpacke Installer..."
+PAYLOAD_LINE=$(awk '/^__INSTALLER_PAYLOAD__$/ {print NR + 1; exit 0;}' "$0")
+tail -n +$PAYLOAD_LINE "$0" > ~/install_rocm_rx6000.sh
+chmod +x ~/install_rocm_rx6000.sh
+
+echo "🚀 Starte ROCm RX6000 Installation..."
+~/install_rocm_rx6000.sh
+
+exit 0
+
+__INSTALLER_PAYLOAD__
+#!/bin/bash
+export DEBIAN_FRONTEND=noninteractive
+LOGFILE=~/rocm_rx6000_install.log
+exec > >(tee -a "$LOGFILE") 2>&1
+echo "📁 ROCm RX6000 Setup gestartet: $(date)"
+sudo echo "🔐 Adminrechte bestätigt."
+
+echo "🔄 Systemupdate..."
+yes | sudo apt-get update && yes | sudo apt-get upgrade
+
+echo "🧹 Entferne alte ROCm/AMD-Treiber..."
+sudo amdgpu-uninstall -y || echo "⚠️ amdgpu-uninstall nicht verfügbar"
+sudo apt-get purge -y 'amdgpu-*' 'rocm-*' 'libhsakmt*' 'libhsa-runtime*' 'hip*' 'libamd*'
+sudo apt-get autoremove -y
+sudo rm -rf /opt/rocm* /etc/rocm*
+sed -i '/ROCM_PATH\|HSA_OVERRIDE_GFX_VERSION/d' ~/.bashrc
+
+echo "🔧 Installiere benötigte Tools..."
+yes | sudo apt-get install -y linux-headers-$(uname -r) linux-modules-extra-$(uname -r)
+yes | sudo apt-get install -y clinfo python3-setuptools python3-wheel dos2unix
+
+echo "📥 Installiere amdgpu-install Paket..."
+wget -q https://repo.radeon.com/amdgpu-install/6.4.1/ubuntu/jammy/amdgpu-install_6.4.60401-1_all.deb
+sudo dpkg -i amdgpu-install_6.4.60401-1_all.deb
+sudo apt-get -y -qq -f install
+
+echo "👥 Setze Gruppenrechte..."
+sudo usermod -aG video,render $USER
+echo 'ADD_EXTRA_GROUPS=1' | sudo tee -a /etc/adduser.conf
+echo 'EXTRA_GROUPS=video render' | sudo tee -a /etc/adduser.conf
+
+echo "🔍 GPU-Erkennung für RX6000..."
+GPU_INFO=$(lspci | grep VGA | grep -i "AMD")
+if echo "$GPU_INFO" | grep -q "RX 6"; then
+  GFX_VER="gfx1030"
+  echo "✅ RX6000 erkannt – GFX: $GFX_VER"
+else
+  echo "❌ Keine RX6000 GPU gefunden – Abbruch."
+  exit 1
+fi
+
+echo "🔧 Installiere ROCm mit HIP..."
+sudo amdgpu-install --usecase=rocm --no-dkms
+
+echo "📁 Ergänze .bashrc..."
+cat <<EOL >> ~/.bashrc
+
+# ROCm RX6000 Konfiguration
+export ROCM_PATH=/opt/rocm-6.4.1
+export PATH=\$ROCM_PATH/bin:\$PATH
+export LD_LIBRARY_PATH=\$ROCM_PATH/lib:\$LD_LIBRARY_PATH
+export HSA_OVERRIDE_GFX_VERSION=$GFX_VER
+EOL
+
+echo "✅ Setup abgeschlossen: $(date)"
