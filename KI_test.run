@@ -6,24 +6,23 @@ echo "🧪 ROCm Komponententest mit venv gestartet: $(date)" > "$LOG"
 PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
 VENV_PKG="python${PY_VER}-venv"
 
-# 📋 Venv-Paketprüfung
+# 🛠️ Venv-Paket ggf. automatisch installieren
 if ! dpkg -s "$VENV_PKG" &>/dev/null; then
-  echo -e "\n❌ Das Paket $VENV_PKG ist nicht installiert!"
-  echo "🔧 Bitte installiere es mit folgendem Befehl:"
-  echo "    sudo apt install $VENV_PKG"
-  exit 1
+  echo -e "\n⚙️ Installiere fehlendes Paket: $VENV_PKG ..."
+  sudo apt update
+  sudo apt install -y "$VENV_PKG"
 fi
 
 # 🧠 venv einrichten + Pakete installieren
 python3 -m venv ~/rocm_venv
 source ~/rocm_venv/bin/activate
-~/rocm_venv/bin/pip install --upgrade pip notebook tensorflow matplotlib pandas
+pip install --upgrade pip notebook tensorflow matplotlib pandas
 
 # 🚀 HIP Test
 echo -e "\n🚀 HIP Test..." | tee -a "$LOG"
 hipcc --version &>/dev/null && HIP_STATUS="✅ verfügbar" || HIP_STATUS="❌ fehlt"
 
-# 📘 Jupyter Test
+# 📘 Jupyter Test (CLI-basiert)
 echo -e "\n📘 Jupyter Test..." | tee -a "$LOG"
 ~/rocm_venv/bin/jupyter --version &>/dev/null && JUPYTER_STATUS="✅ verfügbar" || JUPYTER_STATUS="❌ fehlt"
 
