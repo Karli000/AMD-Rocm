@@ -1,19 +1,17 @@
-#!/bin/bash
+LOG="rocm_setup.log"
+echo "🚀 ROCm Setup gestartet: $(date)" > "$LOG"
 
-LOG="rocm_precheck.log"
-echo "🧪 ROCm Precheck gestartet: $(date)" > "$LOG"
-
-# 🟢 Systeminfos erfassen
+# 🧪 System-Check: Ubuntu-Version & Kernel
 UBUNTU=$(lsb_release -rs)
 KERNEL=$(uname -r | cut -d '-' -f1)
 MAJOR=$(echo "$KERNEL" | cut -d '.' -f1)
 MINOR=$(echo "$KERNEL" | cut -d '.' -f2)
 CURRENT="$MAJOR.$MINOR"
 
-echo "Ubuntu-Version: $UBUNTU" | tee -a "$LOG"
-echo "Kernel-Version: $CURRENT" | tee -a "$LOG"
+echo "📦 Ubuntu-Version: $UBUNTU" | tee -a "$LOG"
+echo "📦 Kernel-Version: $CURRENT" | tee -a "$LOG"
 
-# ✅ ROCm-Kompatibilität prüfen
+# ✅ ROCm-Kompatibilität
 COMPAT=false
 if [[ "$UBUNTU" == "22.04" && ( "$CURRENT" == "5.15" || "$CURRENT" == "6.8" ) ]]; then
     COMPAT=true
@@ -24,30 +22,16 @@ fi
 if [ "$COMPAT" = true ]; then
     echo "✅ Ubuntu $UBUNTU + Kernel $CURRENT sind mit ROCm kompatibel!" | tee -a "$LOG"
 else
-    echo "❌ Kombination aus Ubuntu $UBUNTU + Kernel $CURRENT ist NICHT offiziell unterstützt!" | tee -a "$LOG"
+    echo "❌ Kombination nicht offiziell unterstützt – Installation trotzdem fortgesetzt (Fallback ROCm-Version möglich)" | tee -a "$LOG"
 fi
 
-# 🎮 GPU-Erkennung
+# 🎮 GPU-Erkennung (RX 6000 Serie / Navi 2x)
+GPU_RAW=$(lspci | grep VGA | grep -i amd)
 echo "🔍 GPU-Erkennung:" | tee -a "$LOG"
-GPU_NAME=$(lspci | grep VGA | grep -i amd)
-echo "$GPU_NAME" | tee -a "$LOG"
+echo "$GPU_RAW" | tee -a "$LOG"
 
-if [[ "$GPU_NAME" == *"6600 XT"* || "$GPU_NAME" == *"Navi 23"* ]]; then
-    echo "✅ AMD RX 6600 XT erkannt – Architektur gfx1032 (ROCm-fähig)" | tee -a "$LOG"
+if echo "$GPU_RAW" | grep -Ei "RX 6[4-9]00|6600|6700|6800|6900|Navi 2[1-4]" > /dev/null; then
+    echo "✅ RDNA2 GPU erkannt (RX 6000-Serie)" | tee -a "$LOG"
 else
-    echo "⚠️ Keine RX 6600 XT erkannt – manuelle Prüfung der ROCm-Kompatibilität empfohlen" | tee -a "$LOG"
+    echo "⚠️ Keine bekannte RDNA2-GPU erkannt – ggf. manuell prüfen!" | tee -a "$LOG"
 fi
-
-# 🛠️ System aktualisieren
-echo "📦 System wird aktualisiert..." | tee -a "$LOG"
-sudo apt update && sudo apt upgrade -y && sudo apt dist-upgrade -y
-
-# 📥 Kernel ggf. erweitern
-if [[ "$UBUNTU" == "22.04" ]]; then
-    echo "📥 Installiere HWE-Kernel für 22.04" | tee -a "$LOG"
-    sudo apt install --install-recommends linux-generic-hwe-22.04 -y
-elif [[ "$UBUNTU" == "24.04" ]]; then
-    echo "📥 Kernel ist aktuell für Ubuntu 24.04" | tee -a "$LOG"
-fi
-
-echo "✅ Skript abgeschlossen. Details siehe → $LOG"
