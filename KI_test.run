@@ -1,53 +1,50 @@
 #!/bin/bash
 LOG="KI_test.log"
-echo "🧪 ROCm Komponententest mit venv gestartet: $(date)" > "$LOG"
+echo "🧪 ROCm Komponententest gestartet: $(date)" > "$LOG"
 
-# 📦 Python-Version ermitteln (z. B. 3.12)
+# 📦 Python-Version erkennen (z. B. 3.12)
 PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-VENV_PKG="python${PY_VER}-venv"
-FULL_PKG="python${PY_VER}-full"
+PY_FULL="python${PY_VER}-full"
+PY_VENV="python${PY_VER}-venv"
+PY_BASE="python${PY_VER}"
 
-# 🔍 Test: ensurepip vorhanden?
-if ! python3 -m ensurepip &>/dev/null; then
-  echo -e "\n⚙️ Python venv/ensurepip fehlen – installiere:"
-  echo "🔧 sudo apt update"
-  echo "🔧 sudo apt install -y $VENV_PKG $FULL_PKG"
+# 🔍 Prüfen, ob python3 vorhanden ist
+if ! command -v python3 &>/dev/null; then
+  echo "⚠️ Python3 ist nicht installiert – wird jetzt installiert..."
   sudo apt update
-  sudo apt install -y "$VENV_PKG" "$FULL_PKG"
+  sudo apt install -y $PY_BASE
 fi
 
-# 🧠 venv einrichten + Pakete installieren
+# 🔧 Venv + Pip-Voraussetzungen installieren
+sudo apt update
+sudo apt install -y $PY_VENV $PY_FULL
+
+# 🧠 venv erstellen + aktivieren
 python3 -m venv ~/rocm_venv
 source ~/rocm_venv/bin/activate
+
+# 📦 Pakete installieren
 pip install --upgrade pip notebook tensorflow matplotlib pandas
 
 # 🚀 HIP Test
-echo -e "\n🚀 HIP Test..." | tee -a "$LOG"
 hipcc --version &>/dev/null && HIP_STATUS="✅ verfügbar" || HIP_STATUS="❌ fehlt"
 
 # 📘 Jupyter Test
-echo -e "\n📘 Jupyter Test..." | tee -a "$LOG"
 ~/rocm_venv/bin/jupyter --version &>/dev/null && JUPYTER_STATUS="✅ verfügbar" || JUPYTER_STATUS="❌ fehlt"
 
 # 🎨 Blender Test
-echo -e "\n🎨 Blender Test..." | tee -a "$LOG"
 blender --version &>/dev/null && BLENDER_STATUS="✅ verfügbar" || BLENDER_STATUS="❌ fehlt"
 
 # 🧠 TensorFlow Test
-echo -e "\n🧠 TensorFlow Test..." | tee -a "$LOG"
 ~/rocm_venv/bin/python -c "import tensorflow" &>/dev/null && TENSORFLOW_STATUS="✅ verfügbar" || TENSORFLOW_STATUS="❌ fehlt"
 
 # 📊 Komponententabelle
 echo -e "\n📊 Komponententabelle:" | tee -a "$LOG"
-TABLE=$(cat <<TAB
-| Komponente   | Funktionstest         | Status             |
-|--------------|-----------------------|--------------------|
-| HIP          | hipcc --version       | ${HIP_STATUS}      |
-| Jupyter      | CLI-Versionstest      | ${JUPYTER_STATUS}  |
-| Blender      | blender --version     | ${BLENDER_STATUS}  |
-| TensorFlow   | Import im venv        | ${TENSORFLOW_STATUS}|
-TAB
-)
+echo -e "| Komponente   | Funktionstest         | Status             |" | tee -a "$LOG"
+echo -e "|--------------|-----------------------|--------------------|" | tee -a "$LOG"
+echo -e "| HIP          | hipcc --version       | ${HIP_STATUS}      |" | tee -a "$LOG"
+echo -e "| Jupyter      | CLI-Versionstest      | ${JUPYTER_STATUS}  |" | tee -a "$LOG"
+echo -e "| Blender      | blender --version     | ${BLENDER_STATUS}  |" | tee -a "$LOG"
+echo -e "| TensorFlow   | Import im venv        | ${TENSORFLOW_STATUS}|" | tee -a "$LOG"
 
-echo -e "\n🧾 Zusammenfassung:\n$TABLE" | tee -a "$LOG"
 echo -e "\n✅ Test abgeschlossen! Ergebnisse gespeichert in $LOG"
