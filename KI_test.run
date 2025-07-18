@@ -2,29 +2,25 @@
 LOG="KI_test.log"
 echo "🧪 ROCm Komponententest gestartet: $(date)" > "$LOG"
 
-# 📦 Python-Version erkennen (z. B. 3.12)
-PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-PY_FULL="python${PY_VER}-full"
-PY_VENV="python${PY_VER}-venv"
+# 📦 Python-Version prüfen
+PY_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null)
 PY_BASE="python${PY_VER}"
+PY_VENV="python${PY_VER}-venv"
+PY_FULL="python${PY_VER}-full"
 
-# 🔍 Prüfen, ob python3 vorhanden ist
-if ! command -v python3 &>/dev/null; then
-  echo "⚠️ Python3 ist nicht installiert – wird jetzt installiert..."
-  sudo apt update
-  sudo apt install -y $PY_BASE
-fi
-
-# 🔧 Venv + Pip-Voraussetzungen installieren
+# ✅ Python installieren falls nötig
+echo "🔧 Stelle sicher, dass Python vorhanden ist..."
 sudo apt update
-sudo apt install -y $PY_VENV $PY_FULL
+sudo apt install -y $PY_BASE $PY_VENV $PY_FULL
 
-# 🧠 venv erstellen + aktivieren
+# 🧠 venv einrichten + Pakete installieren
 python3 -m venv ~/rocm_venv
 source ~/rocm_venv/bin/activate
-
-# 📦 Pakete installieren
 pip install --upgrade pip notebook tensorflow matplotlib pandas
+
+# 🛠️ Systemtools prüfen + installieren
+echo "🔧 Installiere hipcc und blender falls nötig..."
+sudo apt install -y hipcc blender
 
 # 🚀 HIP Test
 hipcc --version &>/dev/null && HIP_STATUS="✅ verfügbar" || HIP_STATUS="❌ fehlt"
