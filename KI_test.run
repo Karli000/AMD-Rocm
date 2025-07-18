@@ -9,7 +9,7 @@ PY_VENV="python${PY_VER}-venv"
 PY_FULL="python${PY_VER}-full"
 
 # ✅ Python installieren falls nötig
-echo "🔧 Stelle sicher, dass Python vorhanden ist..."
+echo "🔧 Installiere Python-Komponenten falls nicht vorhanden..."
 sudo apt update
 sudo apt install -y $PY_BASE $PY_VENV $PY_FULL
 
@@ -18,9 +18,16 @@ python3 -m venv ~/rocm_venv
 source ~/rocm_venv/bin/activate
 pip install --upgrade pip notebook tensorflow matplotlib pandas
 
-# 🛠️ Systemtools prüfen + installieren
-echo "🔧 Installiere hipcc und blender falls nötig..."
-sudo apt install -y hipcc blender
+# 🔧 Installiere hipcc falls nötig
+echo "🔧 Prüfe hipcc..."
+sudo apt install -y hipcc
+
+# 🔧 Blender prüfen + ggf. installieren
+echo "🔧 Prüfe Blender..."
+if ! command -v blender &>/dev/null; then
+  echo "🎨 Blender nicht gefunden – installiere via APT..."
+  sudo apt install -y blender
+fi
 
 # 🚀 HIP Test
 hipcc --version &>/dev/null && HIP_STATUS="✅ verfügbar" || HIP_STATUS="❌ fehlt"
