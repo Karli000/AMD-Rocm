@@ -13,7 +13,7 @@ hipcc --version &>/dev/null && HIP_STATUS="✅ verfügbar" || HIP_STATUS="❌ fe
 
 # 📘 Jupyter Test (CLI-basiert, robust für alle Versionen)
 echo -e "\n📘 Jupyter Test..." | tee -a "$LOG"
-~/rocm_venv/bin/jupyter --version &>/dev/null && JUPYTER_STATUS="✅ verfügbar" || JUPYTER_STATUS="❌ fehlt"
+command -v jupyter &>/dev/null && JUPYTER_STATUS="✅ verfügbar" || JUPYTER_STATUS="❌ fehlt"
 
 # 🎨 Blender Test
 echo -e "\n🎨 Blender Test..." | tee -a "$LOG"
