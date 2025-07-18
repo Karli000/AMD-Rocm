@@ -24,7 +24,6 @@ echo -e "\n🧠 TensorFlow Test..." | tee -a "$LOG"
 ~/rocm_venv/bin/python -c "import tensorflow" &>/dev/null && TENSORFLOW_STATUS="✅ verfügbar" || TENSORFLOW_STATUS="❌ fehlt"
 
 # 📊 Ergebnistabelle
-echo -e "\n📊 Komponententabelle:" | tee -a "$LOG"
 TABLE=$(cat <<TAB
 | Komponente   | Funktionstest         | Status             |
 |--------------|-----------------------|--------------------|
@@ -34,57 +33,6 @@ TABLE=$(cat <<TAB
 | TensorFlow   | Import im venv        | ${TENSORFLOW_STATUS}|
 TAB
 )
-echo "$TABLE" | tee -a "$LOG"
-echo -e "\n✅ Test abgeschlossen! Ergebnisse in $LOG"
 
-# 📘 Jupyter-Notebook zur Auswertung erzeugen
-cat <<EOF > KI_log_analyzer.ipynb
-{
- "cells": [
-  {
-   "cell_type": "code",
-   "metadata": {},
-   "source": [
-    "import pandas as pd\\n",
-    "import re\\n",
-    "import matplotlib.pyplot as plt\\n",
-    "log_path = \\"KI_test.log\\"\\n",
-    "with open(log_path, \\"r\\") as file:\\n",
-    "    log = file.read()\\n",
-    "table_match = re.search(r\\"\\\\| Komponente.+?\\\\| TensorFlow.+?\\\\|\\", log, re.DOTALL)\\n",
-    "table_text = table_match.group(0) if table_match else \\"\\"\\n",
-    "lines = [line.strip() for line in table_text.split(\\\"\\\\n\\\") if line.strip().startswith(\\\"|\\\")]\\n",
-    "rows = [line.strip(\\\"|\\\").split(\\\"|\\\") for line in lines[2:]]\\n",
-    "df = pd.DataFrame(rows, columns=[\\"Komponente\\", \\"Funktionstest\\", \\"Status\\"])\\n",
-    "df = df.applymap(str.strip)\\n",
-    "df[\\"OK\\"] = df[\\"Status\\"].apply(lambda s: 1 if \\"✅\\" in s else 0)\\n",
-    "df"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "metadata": {},
-   "source": [
-    "plt.figure(figsize=(6,4))\\n",
-    "plt.bar(df[\\"Komponente\\"], df[\\"OK\\"], color=[\\"green\\" if ok else \\"red\\" for ok in df[\\"OK\\"]])\\n",
-    "plt.ylim(0, 1.2)\\n",
-    "plt.yticks([0, 1], [\\"❌ Fehlend\\", \\"✅ Verfügbar\\"])\\n",
-    "plt.title(\\"🧠 ROCm KI-Komponententest\\")\\n",
-    "plt.grid(axis=\\"y\\", linestyle=\\"--\\", alpha=0.5)\\n",
-    "plt.tight_layout()\\n",
-    "plt.show()"
-   ]
-  }
- ],
- "metadata": {
-  "kernelspec": { "display_name": "Python 3", "name": "python3" }
- },
- "nbformat": 4,
- "nbformat_minor": 2
-}
-EOF
-
-# 🚀 Notebook automatisch starten
-nohup ~/rocm_venv/bin/jupyter notebook KI_log_analyzer.ipynb &
-
-echo "📊 Notebook gestartet – du kannst deine Testergebnisse jetzt grafisch analysieren!"
+echo -e "\n🧾 Zusammenfassung:\n$TABLE" | tee -a "$LOG"
+echo -e "\n✅ Test abgeschlossen! Ergebnisse gespeichert in $LOG"
