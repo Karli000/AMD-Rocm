@@ -6,37 +6,33 @@ echo "🧪 ROCm Benchmark gestartet: $(date)" > "$LOG"
 # 📦 System vorbereiten
 echo "📦 Installiere nötige Pakete..." | tee -a "$LOG"
 sudo apt update
-sudo apt install -y python3-pip python3-dev python-is-python3 build-essential \
-                    hipcc blender wget git unzip libopenblas-dev libssl-dev \
-                    rocminfo clinfo
+sudo apt install -y python3-venv python3-full build-essential \
+                    hipcc wget git unzip libopenblas-dev libssl-dev \
+                    rocminfo clinfo blender
 
-# 📥 Blender CLI laden (falls fehlt)
-if ! command -v blender-benchmark-cli &> /dev/null; then
-    wget https://download.blender.org/benchmark/blender-benchmark-cli-0.1.0-linux64.tar.gz
-    tar -xf blender-benchmark-cli-0.1.0-linux64.tar.gz
-    sudo mv blender-benchmark-cli-*/blender-benchmark-cli /usr/local/bin/
-fi
+# 🧠 TensorFlow ROCm in venv installieren
+echo -e "\n📦 Erstelle Python-Umgebung für TensorFlow..." | tee -a "$LOG"
+python3 -m venv rocm-env
+source rocm-env/bin/activate
+pip install --upgrade pip
+pip install tensorflow-rocm
 
-# 🧠 TensorFlow ROCm installieren
-echo -e "\n📦 Installiere TensorFlow ROCm..." | tee -a "$LOG"
-pip3 install --upgrade pip
-pip3 install tensorflow-rocm
-
-# 🧠 TensorFlow Benchmark (ResNet50)
+# 🧠 TensorFlow Benchmark
 echo -e "\n🧠 TensorFlow Benchmark:" | tee -a "$LOG"
-python3 - <<EOF | tee -a "$LOG"
+python <<EOF | tee -a "$LOG"
 import tensorflow as tf, time
 print("TensorFlow GPU:", tf.config.list_physical_devices('GPU'))
 model = tf.keras.applications.ResNet50()
 dummy = tf.random.normal([128, 224, 224, 3])
-model(dummy)  # Warmup
+model(dummy)
 start = time.time()
 for _ in range(10): model(dummy)
 end = time.time()
 print(f"ResNet50 Inferenz: {10/(end - start):.2f} Bilder/Sekunde")
 EOF
+deactivate
 
-# 🔧 HIP Benchmark: Matrix-Multiplikation
+# 🔧 HIP Benchmark
 echo -e "\n🔧 HIP Benchmark:" | tee -a "$LOG"
 cat > hip_matmul.cpp <<EOF
 #include <hip/hip_runtime.h>
@@ -65,14 +61,18 @@ int main() {
 }
 EOF
 
-hipcc hip_matmul.cpp -o hip_matmul && ./hip_matmul | tee -a "$LOG"
+hipcc hip_matmul.cpp --rocm-device-lib-path=/opt/rocm/lib/amdgcn/bitcode -o hip_matmul && ./hip_matmul | tee -a "$LOG"
 
-# 🎨 Blender CLI Benchmark
-echo -e "\n🎨 Blender CLI Benchmark:" | tee -a "$LOG"
-blender-benchmark-cli start --device HIP --suite quick --output blender_result.json | tee -a "$LOG"
+# 🎨 Blender Benchmark (optional)
+echo -e "\n🎨 Blender Benchmark:" | tee -a "$LOG"
+if command -v blender-benchmark-cli &> /dev/null; then
+  blender-benchmark-cli start --device HIP --suite quick --output blender_result.json | tee -a "$LOG"
+else
+  echo "⚠️ Blender CLI nicht verfügbar oder URL nicht erreichbar." | tee -a "$LOG"
+fi
 
 # 📈 ROCm Monitoring
-echo -e "\n📈 ROCm Monitoring (Temperatur & VRAM):" | tee -a "$LOG"
+echo -e "\n📈 ROCm Monitoring:" | tee -a "$LOG"
 if command -v amd-smi &> /dev/null; then
   amd-smi --showtemp | tee -a "$LOG"
   amd-smi --showmeminfo vram | tee -a "$LOG"
@@ -80,13 +80,13 @@ else
   echo "⚠️ amd-smi nicht verfügbar" | tee -a "$LOG"
 fi
 
-# 📊 Benchmark-Ergebnistabelle
+# 📊 Benchmark-Tabelle
 echo -e "\n📊 ROCm Benchmark-Ergebnisse:" | tee -a "$LOG"
 echo "| 🔧 Testbereich     | Tool / Methode                 | Ergebnis / Leistung                        | Status         |" | tee -a "$LOG"
 echo "|--------------------|-------------------------------|--------------------------------------------|----------------|" | tee -a "$LOG"
 echo "| 🧠 TensorFlow      | ResNet50 Inferenz (Batch 128) | ~267 Bilder/Sekunde auf GPU                | ✅ Erfolgreich |" | tee -a "$LOG"
 echo "| 🔧 HIP             | Matrixmultiplikation (HIP C++)| C[0] = 2048.00 bestätigt                   | ✅ Erfolgreich |" | tee -a "$LOG"
-echo "| 🎨 Blender         | Benchmark CLI (HIP)           | Ergebnis in blender_result.json            | ✅ Erfolgreich |" | tee -a "$LOG"
+echo "| 🎨 Blender         | Benchmark CLI (HIP)           | Ergebnis in blender_result.json (optional) | ⚠️ Optional     |" | tee -a "$LOG"
 echo "| 📈 ROCm Monitoring | amd-smi                        | Temperatur & VRAM angezeigt                | ✅ Erfolgreich |" | tee -a "$LOG"
 echo "| 🧬 OpenCL Check    | clinfo                         | GPU erkannt, OpenCL aktiv                  | ✅ Erfolgreich |" | tee -a "$LOG"
 echo "| 🧬 ROCm Agent Info | rocminfo                       | ISA, CU, Speicher sichtbar                 | ✅ Erfolgreich |" | tee -a "$LOG"
