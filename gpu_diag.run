@@ -1,9 +1,9 @@
 #!/bin/bash
-# gpu_diag.run v1.2 – RDNA2 Diagnose mit ROCm, auto-install & sensor-check 🧠
+# gpu_diag.run v1.3 – RDNA2 Diagnose mit ROCm, auto-install & sensor-check 🧠
 
 LOGFILE="gpu_diag_$(date +%Y%m%d_%H%M%S).log"
 
-echo -e "\e[1;36m=== RDNA2 GPU Diagnose Tool v1.2 ===\e[0m"
+echo -e "\e[1;36m=== RDNA2 GPU Diagnose Tool v1.3 ===\e[0m"
 echo "Systemzeit: $(date)"
 echo "--------------------------------"
 
@@ -25,7 +25,7 @@ if ! mount | grep -q debugfs; then
   mount -t debugfs none /sys/kernel/debug
 fi
 
-# Temperatur & Lüfter auslesen
+# Temperatur & Lüfter
 echo -e "\n\e[1;34m🌡️ Temperatur & Lüfter:\e[0m"
 for file in /sys/class/hwmon/hwmon*/temp*_input; do
   [[ -f "$file" ]] && value=$(cat "$file") && echo "  $(basename "$file"): $((value/1000))°C"
@@ -34,13 +34,19 @@ for fan in /sys/class/hwmon/hwmon*/fan*_input; do
   [[ -f "$fan" ]] && value=$(cat "$fan") && echo "  $(basename "$fan"): $value RPM"
 done
 
-# ROCm-SMI ausführen
+# ROCm-SMI
 echo -e "\n\e[1;34m📦 ROCm-SMI:\e[0m"
 command -v rocm-smi &> /dev/null && rocm-smi | grep -v "^=" || echo "'rocm-smi' nicht gefunden."
 
-# amdgpu_pm_info anzeigen
+# amdgpu_pm_info mit Hinweis
 echo -e "\n\e[1;34m⚡ amdgpu_pm_info:\e[0m"
-[[ -f /sys/kernel/debug/dri/0/amdgpu_pm_info ]] && cat /sys/kernel/debug/dri/0/amdgpu_pm_info || echo "Nicht verfügbar."
+if [[ -f /sys/kernel/debug/dri/0/amdgpu_pm_info ]]; then
+  cat /sys/kernel/debug/dri/0/amdgpu_pm_info
+else
+  echo -e "\e[1;33mHinweis: 'amdgpu_pm_info' ist nicht verfügbar.\e[0m"
+  echo -e "\e[1;33m🛈 Diese Datei wird bei RDNA2-GPUs (z. B. RX 6800 XT) unter ROCm häufig nicht bereitgestellt.\e[0m"
+  echo -e "\e[1;33m🧠 ROCm verwendet stattdessen 'rocm-smi' und direkte Kernelpfade für Takt- und Power-Werte.\e[0m"
+fi
 
 # sensors-Ausgabe
 echo -e "\n\e[1;34m🧭 sensors:\e[0m"
@@ -49,3 +55,4 @@ sensors | grep -E 'edge|temp|fan|RPM' || echo "Keine sensors-Daten"
 # Log-Hinweis
 echo -e "\n\e[1;32m✅ Diagnose abgeschlossen.\e[0m Ausgabe speichern mit:"
 echo "  ./gpu_diag.run | tee $LOGFILE"
+
