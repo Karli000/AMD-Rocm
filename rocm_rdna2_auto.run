@@ -14,6 +14,10 @@ CURRENT="$MAJOR.$MINOR"
 echo "📦 Ubuntu-Version: $UBUNTU ($UBU_CODENAME)" | tee -a "$LOG"
 echo "📦 Kernel-Version: $CURRENT" | tee -a "$LOG"
 
+echo "📦 Führe System-Update durch..." | tee -a "$LOG"
+sudo apt update && sudo apt upgrade -y
+echo "✅ System erfolgreich aktualisiert." | tee -a "$LOG"
+
 # 🔍 GPU-Erkennung
 GPU_RAW=$(lspci | grep VGA | grep -i amd)
 echo "🔍 GPU-Erkennung:" | tee -a "$LOG"
@@ -83,3 +87,8 @@ echo -e "\n🔍 rocminfo:" | tee -a "$LOG"
 rocminfo | tee -a "$LOG"
 
 echo -e "\n✅ ROCm Setup abgeschlossen." | tee -a "$LOG"
+
+echo "🔁 System wird in 10 Sekunden neu gestartet..." | tee -a "$LOG"
+sleep 10
+sudo reboot
+
