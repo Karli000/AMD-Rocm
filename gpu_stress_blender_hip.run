@@ -20,7 +20,7 @@ fi
 
 # 🎬 Szene laden (Barbershop Interior)
 cd ~/blender_hip
-SCENE_URL="https://download.blender.org/demo/test/barbershop_interior.blend"
+wget -q https://download.blender.org/demo/test/barbershop_interior.blend -O stress_test.blend
 SCENE_FILE="stress_test.blend"
 
 echo "📂 Lade Raytracing-Szene..."
