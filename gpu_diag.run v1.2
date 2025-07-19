@@ -1,0 +1,54 @@
+#!/bin/bash
+# gpu_diag.run v1.2 – Automatisiertes Diagnose-Tool für RDNA2 mit ROCm 🧠
+
+LOGFILE="gpu_diag_$(date +%Y%m%d_%H%M%S).log"
+
+echo -e "\e[1;36m=== RDNA2 GPU Diagnose Tool v1.2 ===\e[0m"
+echo "Systemzeit: $(date)"
+echo "--------------------------------"
+
+# Root-Check
+if [[ $EUID -ne 0 ]]; then
+  echo -e "\e[1;31m⚠️ Bitte mit 'sudo' ausführen – für vollständige Diagnosedaten.\e[0m"
+fi
+
+# lm-sensors automatisch installieren
+if ! command -v sensors &> /dev/null; then
+  echo -e "\e[1;33m➕ 'lm-sensors' fehlt – wird installiert...\e[0m"
+  apt update && apt install -y lm-sensors
+  yes | sensors-detect
+fi
+
+# debugfs automatisch mounten
+if ! mount | grep -q debugfs; then
+  echo -e "\e[1;33m➕ 'debugfs' wird gemountet...\e[0m"
+  mount -t debugfs none /sys/kernel/debug
+fi
+
+# Temperatur & Lüfter
+echo -e "\n\e[1;34m🌡️ Temperatur & Lüfterdaten:\e[0m"
+for file in /sys/class/hwmon/hwmon*/temp*_input; do
+  [[ -f "$file" ]] && value=$(cat "$file") && echo "  $(basename "$file"): $((value/1000))°C"
+done
+
+for fan in /sys/class/hwmon/hwmon*/fan*_input; do
+  [[ -f "$fan" ]] && value=$(cat "$fan") && echo "  $(basename "$fan"): $value RPM"
+done
+
+# ROCm-SMI Ausgabe
+echo -e "\n\e[1;34m📦 ROCm-SMI Status:\e[0m"
+if command -v rocm-smi &> /dev/null; then
+  rocm-smi | grep -v "^=" | grep -v "^$"
+else
+  echo -e "\e[1;33m'rocm-smi' nicht gefunden – bitte ROCm korrekt installieren.\e[0m"
+fi
+
+# AMDGPU-PM Info
+echo -e "\n\e[1;34m⚡ AMDGPU PM Info:\e[0m"
+[[ -f /sys/kernel/debug/dri/0/amdgpu_pm_info ]] && cat /sys/kernel/debug/dri/0/amdgpu_pm_info || echo -e "\e[1;33mNicht verfügbar oder nicht geladen.\e[0m"
+
+# Sensors-Ausgabe
+echo -e "\n\e[1;34m🧭 sensors-Ausgabe:\e[0m"
+sensors | grep -E 'edge|temp|fan|RPM' || echo "Keine sensors-Daten"
+
+echo -e "\n\e[1;32m✅ Diagnose abgeschlossen.\e[0m Ausgabe speichern mit:\n  ./gpu_diag.run | tee $LOGFILE"
