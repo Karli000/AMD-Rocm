@@ -1,43 +1,100 @@
 #!/bin/bash
-# rocmtop.run – ROCm GPU Monitor im nvtop-Style 🧠
+# rocmtop.run – ROCm GPU Monitor mit Multi-GPU, Balken, Farben, Profilen & RDNA1–4 Support 🧠🔥
+
+# Mapping für gfx → Architektur + Modell
+gpu_info() {
+  local gfx="$1"
+  case "$gfx" in
+    gfx1010) echo "RDNA1 / RX 5700 / XT";;
+    gfx1011) echo "RDNA1 / RX 5600 XT";;
+    gfx1030) echo "RDNA2 / RX 6800 / RX 6900";;
+    gfx1031) echo "RDNA2 / RX 6700 XT";;
+    gfx1032) echo "RDNA2 / RX 6600 / XT";;
+    gfx1100) echo "RDNA3 / RX 7900 XT / XTX";;
+    gfx1102) echo "RDNA3 / RX 7600 / XT";;
+    gfx1103) echo "RDNA3 / RX 7800 XT";;
+    gfx1200) echo "RDNA4 / RX 8000 Serie";;
+    gfx1201) echo "RDNA4 / RX 8800 XT";;
+    *)       echo "Unbekannte GPU [$gfx]";;
+  esac
+}
+
+color_zone() {
+  local val=$1
+  if (( val >= 90 )); then echo "$(tput setaf 1)" # rot
+  elif (( val >= 80 )); then echo "$(tput setaf 3)" # gelb
+  else echo "$(tput setaf 6)" # cyan
+  fi
+}
+
+bar() {
+  local val=$1 width=20
+  (( val > 100 )) && val=100
+  local filled=$(( val * width / 100 ))
+  local empty=$(( width - filled ))
+  printf "[%s%s]" "$(printf '█%.0s' $(seq 1 $filled))" "$(printf ' %.0s' $(seq 1 $empty))"
+}
 
 clear
-echo -e "\e[1;36m=== Starte rocmtop (aktualisiert alle 1s) ===\e[0m"
-echo -e "Drücke [Ctrl+C] zum Beenden\n"
+echo -e "$(tput bold)$(tput setaf 2)=== Starte rocmtop – nvtop für ROCm 😎 ===$(tput sgr0)\n"
 
-# GPU-Erkennung via rocminfo & rocm-smi
-DEVICE_ID=$(rocm-smi | grep -Eo '0x[0-9a-f]{4}' | head -n 1)
-GFX=$(rocminfo | grep -i 'gfx' | grep -o 'gfx[0-9]*' | head -n 1)
+# GFX-Code + Device-ID sammeln
+GFX_LIST=$(rocminfo | grep -o 'gfx[0-9]*' | sort -u)
+DEVICE_IDS=$(rocm-smi | grep -Eo '0x[0-9a-f]{4}')
 
-# Mini-Mapping basierend auf gfx-Code
-case "$GFX" in
-  gfx1030) MODEL="RX 6800 / RX 6900";;
-  gfx1032) MODEL="RX 6600 / RX 6600 XT";;
-  gfx1100) MODEL="RX 7900 XT / XTX";;
-  gfx900)  MODEL="Vega 56 / 64";;
-  *)       MODEL="Unbekanntes Modell";;
-esac
+# Anzeige der GPUs
+i=0
+for gfx in $GFX_LIST; do
+  dev=$(echo "$DEVICE_IDS" | sed -n "$((i+1))p")
+  echo -e "🧠 GPU $i: $(gpu_info "$gfx") [$gfx] | Device-ID: $dev"
+  ((i++))
+done
+echo -e "─────────────────────────────────────────────────────────────"
 
-echo -e "🧠 GPU erkannt: $MODEL [$GFX] | Device-ID: $DEVICE_ID"
-echo -e "────────────────────────────────────"
-
+# Monitoring-Loop
 while true; do
   clear
   TIMESTAMP=$(date "+%H:%M:%S")
-  echo -e "🕒 $TIMESTAMP – ROCm GPU Monitoring"
-  echo -e "────────────────────────────────────"
+  echo -e "$(tput bold)🕒 $TIMESTAMP – ROCm GPU Live Monitor$(tput sgr0)"
+  echo -e "─────────────────────────────────────────────────────────────"
 
+  index=0
   rocm-smi | grep -E '^[0-9]' | while read -r line; do
-    TEMP=$(echo "$line" | awk '{print $4}')
+    TEMP=$(echo "$line" | awk '{print int($4)}')
     POWER=$(echo "$line" | awk '{print $6}')
     SCLK=$(echo "$line" | awk '{print $8}')
     MCLK=$(echo "$line" | awk '{print $9}')
-    FAN=$(echo "$line" | awk '{print $10}')
-    GPU=$(echo "$line" | awk '{print $12}')
+    FAN=$(echo "$line" | awk '{print int($10)}')
+    GPU=$(echo "$line" | awk '{print int($12)}')
 
-    printf "🌡️  Temp: %-8s | 🔋 Power: %-8s | 🌀 Fan: %-7s | ⏱️ SCLK: %-6s | MCLK: %-6s | 🚀 GPU%%: %-4s\n" \
-      "$TEMP" "$POWER" "$FAN" "$SCLK" "$MCLK" "$GPU"
+    # Farben + Balken
+    CT=$(color_zone $TEMP)
+    CG=$(color_zone $GPU)
+    TEMP_BAR=$(bar $TEMP)
+    FAN_BAR=$(bar $FAN)
+    GPU_BAR=$(bar $GPU)
+
+    # Profil
+    if (( GPU <= 10 )); then PROFILE="Idle"
+    elif (( GPU <= 60 )); then PROFILE="Gaming"
+    elif (( GPU <= 90 )); then PROFILE="Compute"
+    else PROFILE="Thermal Limit"
+    fi
+
+    echo -e "🌡️ Temp: ${CT}${TEMP}°C $(tput sgr0) $TEMP_BAR | 🔋 Power: $POWER"
+    echo -e "🌀 Fan:  ${FAN}% $FAN_BAR | ⏱️ SCLK: $SCLK | MCLK: $MCLK"
+    echo -e "🚀 GPU%: ${CG}${GPU}%$(tput sgr0) $GPU_BAR | Profil: $PROFILE"
+
+    # Warnung + Lüftertipp
+    if (( TEMP >= 90 )); then
+      echo -e "$(tput blink)$(tput setaf 1)❗ Warnung: ${TEMP}°C – Überhitzung!$(tput sgr0)"
+      echo -ne '\007'
+    elif (( TEMP >= 75 && FAN < 50 )); then
+      echo -e "$(tput setaf 3)🧠 Empfehlung: Lüfter erhöhen → mind. 65 % bei ${TEMP}°C$(tput sgr0)"
+    fi
+
+    echo -e "─────────────────────────────────────────────────────────────"
+    ((index++))
   done
-
   sleep 1
 done
