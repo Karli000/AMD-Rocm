@@ -1,0 +1,42 @@
+#!/bin/bash
+# Vollinstallation für ROCm HIP GPU-Stresstest mit Blender
+
+echo "🚀 Starte Komplettinstallation für HIP-Stresstest..."
+
+# 🛠️ Systemtools
+sudo apt update
+sudo apt install -y wget git unzip jq python3-pip clinfo rocminfo
+
+# 🧱 ROCm Installation (angepasst für RDNA2/3)
+wget https://raw.githubusercontent.com/Karli000/AMD-Rocm/main/rocm_rdna2_auto.run -O rocm_install.run
+chmod +x rocm_install.run
+./rocm_install.run
+
+# 🎬 Blender mit HIP (v4.0.2 portable)
+mkdir -p ~/blender_hip
+cd ~/blender_hip
+wget https://mirror.clarkson.edu/blender/release/Blender4.0/blender-4.0.2-linux-x64.tar.xz
+tar -xf blender-4.0.2-linux-x64.tar.xz
+BLENDER=~/blender_hip/blender-4.0.2-linux-x64/blender
+
+# 🖼️ Testszene für Volllast
+wget https://blenderstudio.s3.nl-ams.scw.cloud/production-files/agent327/Agent327_Character.blend -O stress_test.blend
+
+# 🔥 Stresstest-Skript erstellen
+cat <<EOF > gpu_stress_blender_hip.sh
+#!/bin/bash
+BLENDER="$BLENDER"
+SCENE="stress_test.blend"
+OUTPUT="/tmp/hip_stress_####"
+RES_X=3840
+RES_Y=2160
+FRAMES=20
+START=\$(date +%s)
+echo "🔥 Blender HIP Stresstest – 4K Szene mit \$FRAMES Frames"
+"\$BLENDER" -b "\$SCENE" --engine CYCLES --render-output "\$OUTPUT" -f 1..\$FRAMES -- --cycles-device HIP
+END=\$(date +%s)
+echo "✅ Dauer: \$((END - START)) Sekunden (~\$(((END - START)/60)) Minuten)"
+EOF
+
+chmod +x gpu_stress_blender_hip.sh
+echo "✅ Fertig! Starte den Stresstest mit: ./gpu_stress_blender_hip.sh"
