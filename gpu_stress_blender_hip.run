@@ -1,24 +1,52 @@
 #!/bin/bash
+# Blender HIP GPU-Stresstest mit Blender 4.5 LTS und realistischer Raytracing-Szene
+
 set -e
-BLENDER=~/blender_hip/blender-4.0.2-linux-x64/blender
-if [ ! -f "$BLENDER" ]; then
-  mkdir -p ~/blender_hip && cd ~/blender_hip
-  wget -q https://mirror.clarkson.edu/blender/release/Blender4.0/blender-4.0.2-linux-x64.tar.xz
-  tar -xf blender-4.0.2-linux-x64.tar.xz
+echo "🚀 Starte HIP-GPU-Stresstest mit Blender 4.5 LTS..."
+
+# 🧱 Blender vorbereiten
+BLENDER_DIR=~/blender_hip/blender-4.5.0-linux-x64
+BLENDER_BIN="$BLENDER_DIR/blender"
+
+if [ ! -f "$BLENDER_BIN" ]; then
+  echo "⬇️ Lade Blender 4.5 LTS..."
+  mkdir -p ~/blender_hip
+  cd ~/blender_hip
+  wget -q https://mirror.clarkson.edu/blender/release/Blender4.5/blender-4.5.0-linux-x64.tar.xz
+  tar -xf blender-4.5.0-linux-x64.tar.xz
+else
+  echo "✅ Blender 4.5 LTS ist bereits vorhanden – überspringe Download."
 fi
+
+# 🎬 Szene laden (Barbershop Interior)
 cd ~/blender_hip
-wget -q https://download.blender.org/demo/test/classroom.blend -O stress_test.blend
-RES_X=3840; RES_Y=2160; FRAMES=20; OUTPUT="/tmp/hip_stress_####"
+SCENE_URL="https://download.blender.org/demo/test/barbershop_interior.blend"
+SCENE_FILE="stress_test.blend"
+
+echo "📂 Lade Raytracing-Szene..."
+wget -q "$SCENE_URL" -O "$SCENE_FILE"
+
+# 📐 Render-Settings
+RES_X=3840
+RES_Y=2160
+FRAMES=20
+SAMPLES=1024
+OUTPUT="/tmp/hip_stress_####"
 START=$(date +%s)
-"$BLENDER" -b stress_test.blend --engine CYCLES \
---render-output "$OUTPUT" \
---python-expr "import bpy; \
+
+echo "🔥 Starte 4K-Rendering über HIP: $FRAMES Frames @ $SAMPLES Samples"
+
+"$BLENDER_BIN" -b "$SCENE_FILE" \
+  --engine CYCLES \
+  --render-output "$OUTPUT" \
+  --python-expr "import bpy; \
 bpy.context.scene.cycles.device='GPU'; \
 bpy.context.scene.render.resolution_x=$RES_X; \
 bpy.context.scene.render.resolution_y=$RES_Y; \
-bpy.context.scene.cycles.samples=1024; \
+bpy.context.scene.cycles.samples=$SAMPLES; \
 bpy.context.scene.frame_start=1; \
 bpy.context.scene.frame_end=$FRAMES" \
--- --cycles-device HIP
+  -- --cycles-device HIP
+
 DURATION=$(( $(date +%s) - $START ))
-echo "✅ GPU-Stresstest fertig – Dauer: ${DURATION} Sekunden (~$((DURATION / 60)) Minuten)"
+echo "✅ Stresstest abgeschlossen – Dauer: ${DURATION} Sekunden (~$((DURATION / 60)) Minuten)"
