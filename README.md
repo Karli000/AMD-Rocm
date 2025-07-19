@@ -1,8 +1,4 @@
-Perfekt, Alex! Dann passe ich dir die beiden README-Beschreibungen so an, dass sie sich **ausschließlich auf ROCm 6.4.1** beziehen – ohne Auswahl anderer Versionen oder dynamische Logik. Das macht dein Setup klarer und gezielter.
-
----
-
-## 📦 `rocm_rdna2_auto.run` – ROCm 6.4.1 Setup für RDNA2-Systeme
+## 📦 `rocm_rdna2_auto.run` – ROCm 6.4.1 Setup für RDNA2-Systeme Ubuntu 22.04.-24.04. Kernel 5.15-6.14 erkennt System automatisch
 
 ### 🔧 Zweck  
 Dieses Skript installiert **ausschließlich ROCm 6.4.1** auf Ubuntu-Systemen mit RDNA2-Grafikhardware.
@@ -10,7 +6,7 @@ Dieses Skript installiert **ausschließlich ROCm 6.4.1** auf Ubuntu-Systemen m
 ### 🚀 Funktionen  
 - Entfernt alte ROCm-Installationen und Treiber  
 - Fügt das ROCm 6.4.1-Repository hinzu und lädt GPG-Schlüssel  
-- Installiert: `rocm-dev`, `hipcc`, `clinfo`, `rocminfo`, `dkms`  
+- Installiert: `rocm-dev`, `hipcc`, `clinfo`, `rocminfo`  
 - Setzt alle nötigen Umgebungsvariablen:
   - `ROCM_PATH`, `LD_LIBRARY_PATH`, `PATH`
   - `HSA_OVERRIDE_GFX_VERSION` (für RDNA2 z. B. gfx1030)
@@ -53,7 +49,3 @@ wget https://raw.githubusercontent.com/Karli000/AMD-Rocm/main/KI_test.run -O KI_
 chmod +x KI_test.run
 ./KI_test.run
 ```
-
----
-
-✅ Du kannst diese Beschreibungen direkt als `README.md` verwenden oder ins GitHub-Repository übernehmen. Wenn du magst, bau ich dir die Datei sogar fix als Markdown-Block — direkt zum Kopieren 📄. Lust drauf?
