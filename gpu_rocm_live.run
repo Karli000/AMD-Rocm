@@ -1,0 +1,14 @@
+#!/bin/bash
+# gpu_rocm_live.run – ROCm-SMI Live-Diagnose ohne Log, mit Lüfterdaten
+
+INTERVAL=1  # Sekunden
+
+echo -e "\e[1;36m=== ROCm-SMI Live Monitor startet (alle ${INTERVAL}s) ===\e[0m"
+echo -e "Drücke [Strg+C] zum Beenden.\n"
+
+while true; do
+  TIMESTAMP=$(date "+%H:%M:%S")
+  DATA=$(rocm-smi | grep -E '^[0-9]' | awk '{print "Temp: "$4" | Power: "$6" | SCLK: "$8" | MCLK: "$9" | Fan: "$10" | GPU%: "$12}')
+  echo -e "$TIMESTAMP → $DATA"
+  sleep $INTERVAL
+done
