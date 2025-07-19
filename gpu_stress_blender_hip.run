@@ -1,21 +1,27 @@
 #!/bin/bash
-# Blender HIP GPU-Stresstest mit automatischer Installation & Ausführung
+# Robust: Blender HIP GPU-Stresstest mit Blender-Check & zuverlässiger Szene
 
 set -e
 
 echo "🚀 Starte HIP-GPU-Stresstest mit Blender..."
 
-# 📁 Blender v4.0.2 holen & entpacken
-mkdir -p ~/blender_hip
-cd ~/blender_hip
-wget -q https://mirror.clarkson.edu/blender/release/Blender4.0/blender-4.0.2-linux-x64.tar.xz
-tar -xf blender-4.0.2-linux-x64.tar.xz
+# 📦 Blender-Installation prüfen
 BLENDER=~/blender_hip/blender-4.0.2-linux-x64/blender
+if [ ! -f "$BLENDER" ]; then
+  echo "📦 Blender nicht gefunden – lade herunter..."
+  mkdir -p ~/blender_hip
+  cd ~/blender_hip
+  wget -q https://mirror.clarkson.edu/blender/release/Blender4.0/blender-4.0.2-linux-x64.tar.xz
+  tar -xf blender-4.0.2-linux-x64.tar.xz
+else
+  echo "✅ Blender bereits vorhanden – überspringe Download."
+fi
 
-# 🎬 Szene laden
-wget -q https://blenderstudio.s3.nl-ams.scw.cloud/production-files/agent327/Agent327_Character.blend -O stress_test.blend
+# 🎬 Testszene laden
+cd ~/blender_hip
+wget -q https://download.blender.org/demo/test/classroom.blend -O stress_test.blend
 
-# 📐 Einstellungen
+# 📐 4K-Render-Settings
 RES_X=3840
 RES_Y=2160
 FRAMES=20
@@ -37,4 +43,4 @@ bpy.context.scene.frame_end=$FRAMES" \
   -- --cycles-device HIP
 
 DURATION=$(( $(date +%s) - $START ))
-echo "✅ GPU-Stresstest fertig – Dauer: ${DURATION} Sekunden (~$((DURATION/60)) Minuten)"
+echo "✅ Stresstest abgeschlossen – Dauer: ${DURATION} Sekunden (~$((DURATION / 60)) Minuten)"
