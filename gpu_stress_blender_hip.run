@@ -1,0 +1,40 @@
+#!/bin/bash
+# Blender HIP GPU-Stresstest – inklusive Download & sofortiger Ausführung
+
+set -e
+
+echo "🚀 Starte HIP-GPU-Stresstest mit Blender..."
+
+# 📦 Blender herunterladen (v4.0.2 mit HIP-Support, portable)
+mkdir -p ~/blender_hip
+cd ~/blender_hip
+wget -q https://mirror.clarkson.edu/blender/release/Blender4.0/blender-4.0.2-linux-x64.tar.xz
+tar -xf blender-4.0.2-linux-x64.tar.xz
+BLENDER=~/blender_hip/blender-4.0.2-linux-x64/blender
+
+# 🎬 Testszene holen
+wget -q https://blenderstudio.s3.nl-ams.scw.cloud/production-files/agent327/Agent327_Character.blend -O stress_test.blend
+
+# 📐 4K-Einstellungen
+RES_X=3840
+RES_Y=2160
+FRAMES=20
+OUTPUT="/tmp/hip_stress_####"
+START=$(date +%s)
+
+echo "🔥 Render: \$FRAMES Frames in 4K @ 1024 Samples über HIP"
+
+"\$BLENDER" -b stress_test.blend \
+  --engine CYCLES \
+  --render-output "\$OUTPUT" \
+  --python-expr "import bpy; \
+bpy.context.scene.cycles.device='GPU'; \
+bpy.context.scene.render.resolution_x=\$RES_X; \
+bpy.context.scene.render.resolution_y=\$RES_Y; \
+bpy.context.scene.cycles.samples=1024; \
+bpy.context.scene.frame_start=1; \
+bpy.context.scene.frame_end=\$FRAMES" \
+  -- --cycles-device HIP
+
+DURATION=\$(( \$(date +%s) - \$START ))
+echo "✅ Fertig – Dauer: \${DURATION} Sekunden (~\$((DURATION / 60)) Minuten)"
