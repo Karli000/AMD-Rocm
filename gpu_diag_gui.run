@@ -1,19 +1,26 @@
 #!/bin/bash
-# gpu_diag_gui.run – RDNA2 GUI-Diagnose mit ROCm + Zenity-Overlay 🧠
+# gpu_diag_gui.run v1.1 – ROCm-Diagnose mit Zenity-GUI oder CLI-Fallback 🧠
 
-# Prüfe zenity
+# Prüfe, ob DISPLAY verfügbar ist
+if [ -z "$DISPLAY" ]; then
+  GUI=false
+else
+  GUI=true
+fi
+
+# Prüfe Zenity
 if ! command -v zenity &> /dev/null; then
-  echo "🧩 'zenity' wird installiert..."
+  echo "📦 'zenity' wird installiert..."
   sudo apt update && sudo apt install -y zenity
 fi
 
-# ROCm-Daten abfragen
+# ROCm-Daten
 ROCM=$(rocm-smi | grep -v "^=" | grep -v "^$" | awk 'NR>1{print "GPU: "$5"\nPower: "$6"\nSCLK: "$8"\nMCLK: "$9"\nFan: "$10"\nTemp: "$4}')
 
-# sensors-Daten
+# Sensors
 SENSORS=$(sensors | grep -E 'edge|temp|fan|RPM' | awk '{print $1 " " $2}')
 
-# Sysfs-Daten
+# hwmon Sensoren
 SYSFS=""
 for file in /sys/class/hwmon/hwmon*/temp*_input; do
   [[ -f "$file" ]] && value=$(cat "$file") && SYSFS+=$(echo "$(basename "$file"): $((value/1000))°C\n")
@@ -22,13 +29,17 @@ for fan in /sys/class/hwmon/hwmon*/fan*_input; do
   [[ -f "$fan" ]] && value=$(cat "$fan") && SYSFS+=$(echo "$(basename "$fan"): $value RPM\n")
 done
 
-# Meldung zusammensetzen
-MESSAGE="📦 ROCm-SMI Werte:\n$ROCM\n\n🧭 Sensors-Ausgabe:\n$SENSORS\n\n🌡️ hwmon Sensoren:\n$SYSFS"
+# Finaler Textblock
+MESSAGE="📦 ROCm-SMI Werte:\n$ROCM\n\n🧭 sensors:\n$SENSORS\n\n🌡️ hwmon:\n$SYSFS"
 
-# Zenity anzeigen
-zenity --info \
-  --title="RDNA2 GPU Diagnose (GUI-Modus)" \
-  --width=500 \
-  --height=400 \
-  --text="$MESSAGE"
-
+# GUI oder CLI-Ausgabe
+if [ "$GUI" = true ]; then
+  zenity --info \
+    --title="RDNA2 GPU Diagnose (GUI-Modus)" \
+    --width=500 \
+    --height=400 \
+    --text="$MESSAGE"
+else
+  echo -e "\n🖥️ Kein grafisches DISPLAY erkannt – zeige Textdiagnose:\n"
+  echo -e "$MESSAGE"
+fi
