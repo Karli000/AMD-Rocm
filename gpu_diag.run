@@ -1,0 +1,39 @@
+#!/bin/bash
+# gpu_diag.run – Diagnose-Skript für RDNA2-GPUs mit ROCm unter Ubuntu
+# Version: 1.0 – Erstellt von Karli000 🛠️
+
+echo "=== RDNA2 GPU Diagnose Tool ==="
+echo "Systemzeit: $(date)"
+echo "--------------------------------"
+
+# Temperatur & Lüfter auslesen
+echo "🌡️ Temperatur & Lüfterdaten:"
+for file in /sys/class/hwmon/hwmon*/temp*_input; do
+  label=$(basename "$file")
+  value=$(cat "$file")
+  echo "  $label: $((value/1000))°C"
+done
+
+for fan in /sys/class/hwmon/hwmon*/fan*_input; do
+  label=$(basename "$fan")
+  value=$(cat "$fan")
+  echo "  $label: $value RPM"
+done
+
+# ROCm-SMI Werte anzeigen
+echo ""
+echo "📦 ROCm-SMI Status:"
+rocm-smi | grep -v "^=" | grep -v "^$"
+
+# Zusätzliche Infos aus amdgpu_pm_info
+echo ""
+echo "⚡ amdgpu_pm_info:"
+sudo cat /sys/kernel/debug/dri/0/amdgpu_pm_info 2>/dev/null || echo "Nicht verfügbar oder nicht geladen"
+
+# Sensors als Fallback anzeigen
+echo ""
+echo "🧭 sensors-Ausgabe:"
+sensors | grep -E 'edge|temp|fan|RPM' || echo "Keine sensors-Werte verfügbar"
+
+echo ""
+echo "✅ Fertig. Du kannst dieses Skript erweitern oder die Ausgabe in eine Logdatei schreiben."
