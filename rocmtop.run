@@ -1,0 +1,27 @@
+#!/bin/bash
+# rocmtop.run – ROCm GPU Monitor im nvtop-Style 🧠
+
+clear
+echo -e "\e[1;36m=== Starte rocmtop (aktualisiert alle 1s) ===\e[0m"
+echo -e "Drücke [Ctrl+C] zum Beenden\n"
+
+while true; do
+  clear
+  TIMESTAMP=$(date "+%H:%M:%S")
+  echo -e "🕒 $TIMESTAMP – ROCm GPU Monitoring"
+  echo -e "────────────────────────────────────"
+
+  rocm-smi | grep -E '^[0-9]' | while read -r line; do
+    TEMP=$(echo "$line" | awk '{print $4}')
+    POWER=$(echo "$line" | awk '{print $6}')
+    SCLK=$(echo "$line" | awk '{print $8}')
+    MCLK=$(echo "$line" | awk '{print $9}')
+    FAN=$(echo "$line" | awk '{print $10}')
+    GPU=$(echo "$line" | awk '{print $12}')
+
+    printf "🌡️  Temp: %-8s | 🔋 Power: %-8s | 🌀 Fan: %-7s | ⏱️  SCLK: %-6s | MCLK: %-6s | 🚀 GPU%%: %-4s\n" \
+      "$TEMP" "$POWER" "$FAN" "$SCLK" "$MCLK" "$GPU"
+  done
+
+  sleep 1
+done
