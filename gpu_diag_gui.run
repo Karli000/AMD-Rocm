@@ -1,0 +1,34 @@
+#!/bin/bash
+# gpu_diag_gui.run – RDNA2 GUI-Diagnose mit ROCm + Zenity-Overlay 🧠
+
+# Prüfe zenity
+if ! command -v zenity &> /dev/null; then
+  echo "🧩 'zenity' wird installiert..."
+  sudo apt update && sudo apt install -y zenity
+fi
+
+# ROCm-Daten abfragen
+ROCM=$(rocm-smi | grep -v "^=" | grep -v "^$" | awk 'NR>1{print "GPU: "$5"\nPower: "$6"\nSCLK: "$8"\nMCLK: "$9"\nFan: "$10"\nTemp: "$4}')
+
+# sensors-Daten
+SENSORS=$(sensors | grep -E 'edge|temp|fan|RPM' | awk '{print $1 " " $2}')
+
+# Sysfs-Daten
+SYSFS=""
+for file in /sys/class/hwmon/hwmon*/temp*_input; do
+  [[ -f "$file" ]] && value=$(cat "$file") && SYSFS+=$(echo "$(basename "$file"): $((value/1000))°C\n")
+done
+for fan in /sys/class/hwmon/hwmon*/fan*_input; do
+  [[ -f "$fan" ]] && value=$(cat "$fan") && SYSFS+=$(echo "$(basename "$fan"): $value RPM\n")
+done
+
+# Meldung zusammensetzen
+MESSAGE="📦 ROCm-SMI Werte:\n$ROCM\n\n🧭 Sensors-Ausgabe:\n$SENSORS\n\n🌡️ hwmon Sensoren:\n$SYSFS"
+
+# Zenity anzeigen
+zenity --info \
+  --title="RDNA2 GPU Diagnose (GUI-Modus)" \
+  --width=500 \
+  --height=400 \
+  --text="$MESSAGE"
+
