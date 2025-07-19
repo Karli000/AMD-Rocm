@@ -1,10 +1,8 @@
 #!/bin/bash
-# Blender HIP GPU-Stresstest mit Blender 4.5 LTS und realistischer Raytracing-Szene
-
+# Blender 4.5 HIP-GPU Stresstest mit lokal generierter Raytracing-Szene
 set -e
-echo "🚀 Starte HIP-GPU-Stresstest mit Blender 4.5 LTS..."
+echo "🚀 Starte lokalen HIP-GPU-Stresstest mit Blender 4.5 LTS..."
 
-# 🧱 Blender vorbereiten
 BLENDER_DIR=~/blender_hip/blender-4.5.0-linux-x64
 BLENDER_BIN="$BLENDER_DIR/blender"
 
@@ -15,38 +13,74 @@ if [ ! -f "$BLENDER_BIN" ]; then
   wget -q https://mirror.clarkson.edu/blender/release/Blender4.5/blender-4.5.0-linux-x64.tar.xz
   tar -xf blender-4.5.0-linux-x64.tar.xz
 else
-  echo "✅ Blender 4.5 LTS ist bereits vorhanden – überspringe Download."
+  echo "✅ Blender 4.5 LTS bereits vorhanden – kein Download nötig."
 fi
 
-# 🎬 Szene laden (Barbershop Interior)
-cd ~/blender_hip
-wget -q https://download.blender.org/demo/test/barbershop_interior.blend -O stress_test.blend
-SCENE_FILE="stress_test.blend"
-
-echo "📂 Lade Raytracing-Szene..."
-wget -q "$SCENE_URL" -O "$SCENE_FILE"
-
-# 📐 Render-Settings
 RES_X=3840
 RES_Y=2160
 FRAMES=20
 SAMPLES=1024
-OUTPUT="/tmp/hip_stress_####"
+OUTPUT="/tmp/hip_local_stress_####"
 START=$(date +%s)
 
-echo "🔥 Starte 4K-Rendering über HIP: $FRAMES Frames @ $SAMPLES Samples"
+echo "🔥 Erzeuge Szene mit Shader + Licht & rendere direkt"
 
-"$BLENDER_BIN" -b "$SCENE_FILE" \
-  --engine CYCLES \
-  --render-output "$OUTPUT" \
-  --python-expr "import bpy; \
-bpy.context.scene.cycles.device='GPU'; \
-bpy.context.scene.render.resolution_x=$RES_X; \
-bpy.context.scene.render.resolution_y=$RES_Y; \
-bpy.context.scene.cycles.samples=$SAMPLES; \
-bpy.context.scene.frame_start=1; \
-bpy.context.scene.frame_end=$FRAMES" \
-  -- --cycles-device HIP
+"$BLENDER_BIN" -b -P - <<EOF
+import bpy
+
+# Neue Szene
+bpy.ops.wm.read_factory_settings(use_empty=True)
+
+# Kamera
+cam = bpy.data.cameras.new("Camera")
+cam_obj = bpy.data.objects.new("Camera", cam)
+bpy.context.collection.objects.link(cam_obj)
+cam_obj.location = (0, -6, 3)
+cam_obj.rotation_euler = (1.2, 0, 0)
+bpy.context.scene.camera = cam_obj
+
+# Lichtquelle
+light_data = bpy.data.lights.new(name="KeyLight", type='AREA')
+light_data.energy = 3000
+light_obj = bpy.data.objects.new(name="KeyLight", object_data=light_data)
+light_obj.location = (4, -4, 6)
+bpy.context.collection.objects.link(light_obj)
+
+# Shader-Kugel
+bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=(0, 0, 1))
+sphere = bpy.context.active_object
+mat = bpy.data.materials.new(name="GlossyMaterial")
+mat.use_nodes = True
+bsdf = mat.node_tree.nodes.get("Principled BSDF")
+bsdf.inputs["Metallic"].default_value = 0.9
+bsdf.inputs["Roughness"].default_value = 0.1
+sphere.data.materials.append(mat)
+
+# Reflektierender Boden
+bpy.ops.mesh.primitive_plane_add(size=10, location=(0, 0, 0))
+plane = bpy.context.active_object
+mat2 = bpy.data.materials.new(name="FloorMaterial")
+mat2.use_nodes = True
+bsdf2 = mat2.node_tree.nodes.get("Principled BSDF")
+bsdf2.inputs["Metallic"].default_value = 0.3
+bsdf2.inputs["Roughness"].default_value = 0.05
+plane.data.materials.append(mat2)
+
+# Szenen-Settings
+scene = bpy.context.scene
+scene.render.engine = 'CYCLES'
+scene.cycles.device = 'GPU'
+scene.cycles.samples = $SAMPLES
+scene.render.resolution_x = $RES_X
+scene.render.resolution_y = $RES_Y
+scene.frame_start = 1
+scene.frame_end = $FRAMES
+scene.render.image_settings.file_format = 'PNG'
+scene.render.filepath = "$OUTPUT"
+
+# Render starten
+bpy.ops.render.render(animation=True)
+EOF
 
 DURATION=$(( $(date +%s) - $START ))
-echo "✅ Stresstest abgeschlossen – Dauer: ${DURATION} Sekunden (~$((DURATION / 60)) Minuten)"
+echo "✅ Test abgeschlossen – Dauer: ${DURATION}s (~$((DURATION / 60)) min)"
